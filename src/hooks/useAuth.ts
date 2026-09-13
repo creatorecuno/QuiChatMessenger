@@ -1,6 +1,7 @@
-import { createClient, Session, User } from '@supabase/supabase-js';
-import { useEffect, useState, useCallback } from 'react';
-import { supabase, Profile } from '@/lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
+import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import type { OnlineStatus, Profile } from '../types';
 
 interface AuthState {
   session: Session | null;
@@ -30,10 +31,10 @@ export function useAuth() {
     return data as Profile | null;
   }, []);
 
-  const setOnlineStatus = useCallback(async (userId: string, status: 'online' | 'away' | 'offline') => {
+  const setStatus = useCallback(async (userId: string, status: OnlineStatus) => {
     await supabase
       .from('profiles')
-      .update({ online_status: status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq('id', userId);
   }, []);
 
@@ -48,7 +49,7 @@ export function useAuth() {
         const profile = await fetchProfile(session.user.id);
         if (!mounted) return;
         setState({ session, user: session.user, profile, loading: false });
-        await setOnlineStatus(session.user.id, 'online');
+        await setStatus(session.user.id, 'online');
       } else {
         setState({ session: null, user: null, profile: null, loading: false });
       }
@@ -67,53 +68,34 @@ export function useAuth() {
           if (!mounted) return;
           setState({ session, user: session.user, profile, loading: false });
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            await setOnlineStatus(session.user.id, 'online');
+            await setStatus(session.user.id, 'online');
           }
         }
       })();
     });
 
-    const handleBeforeUnload = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (currentSession?.user) {
-        navigator.sendBeacon(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?id=eq.${currentSession.user.id}`,
-          new Blob(
-            [JSON.stringify({ online_status: 'offline' })],
-            { type: 'application/json' }
-          )
-        );
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [fetchProfile, setOnlineStatus]);
+  }, [fetchProfile, setStatus]);
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { username },
-      },
+      options: { data: { username } },
     });
     if (error) throw error;
 
     if (data.user) {
-      const initials = username.slice(0, 2).toUpperCase();
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          username,
-          avatar_initials: initials,
-          online_status: 'online',
-        });
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        username,
+        email,
+        avatar_url: null,
+        status: 'online',
+      });
       if (profileError) {
         console.error('Profile creation error:', profileError.message);
       }
@@ -122,26 +104,23 @@ export function useAuth() {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   }, []);
 
   const signOut = useCallback(async () => {
     if (state.user) {
-      await setOnlineStatus(state.user.id, 'offline');
+      await setStatus(state.user.id, 'offline');
     }
     await supabase.auth.signOut();
-  }, [state.user, setOnlineStatus]);
+  }, [state.user, setStatus]);
 
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
     if (!state.user) return;
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', state.user.id)
       .select()
       .maybeSingle();
@@ -151,17 +130,5 @@ export function useAuth() {
     }
   }, [state.user]);
 
-  return {
-    ...state,
-    signUp,
-    signIn,
-    signOut,
-    updateProfile,
-    refreshProfile: async () => {
-      if (state.user) {
-        const profile = await fetchProfile(state.user.id);
-        if (profile) setState((prev) => ({ ...prev, profile }));
-      }
-    },
-  };
+  return { ...state, signUp, signIn, signOut, updateProfile };
 }
