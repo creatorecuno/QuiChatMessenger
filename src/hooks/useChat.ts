@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, MessageType } from '../types';
 
 function pairChannelName(a: string, b: string) {
   return ['typing', ...[a, b].sort()].join(':');
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
 }
 
 export function useChat(currentUserId: string | undefined, peerId: string | undefined) {
@@ -11,6 +15,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   const [loading, setLoading] = useState(true);
   const [peerTyping, setPeerTyping] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -100,10 +105,48 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
         receiver_id: peerId,
         content: content.trim(),
         status: 'sent',
+        message_type: 'text',
       });
       if (error) {
         console.error('Error sending message:', error.message);
         setSendError(error.message);
+      }
+    },
+    [currentUserId, peerId]
+  );
+
+  const sendMediaMessage = useCallback(
+    async (file: Blob, type: MessageType, fileName: string, durationSeconds?: number) => {
+      if (!currentUserId || !peerId) return;
+      setSendError(null);
+      setUploading(true);
+      try {
+        const path = `${currentUserId}/${Date.now()}-${sanitizeFileName(fileName)}`;
+        const { error: uploadError } = await supabase.storage
+          .from('chat-media')
+          .upload(path, file, { contentType: file.type || undefined, upsert: false });
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage.from('chat-media').getPublicUrl(path);
+
+        const { error: insertError } = await supabase.from('messages').insert({
+          sender_id: currentUserId,
+          receiver_id: peerId,
+          content: '',
+          status: 'sent',
+          message_type: type,
+          file_url: publicUrlData.publicUrl,
+          file_name: fileName,
+          file_size: file.size,
+          duration_seconds: durationSeconds ?? null,
+        });
+        if (insertError) throw insertError;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Не удалось загрузить файл';
+        console.error('Error sending media message:', message);
+        setSendError(message);
+      } finally {
+        setUploading(false);
       }
     },
     [currentUserId, peerId]
@@ -127,5 +170,15 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
     });
   }, [currentUserId]);
 
-  return { messages, loading, peerTyping, sendMessage, deleteMessage, notifyTyping, sendError };
+  return {
+    messages,
+    loading,
+    peerTyping,
+    sendMessage,
+    sendMediaMessage,
+    deleteMessage,
+    notifyTyping,
+    sendError,
+    uploading,
+  };
 }
