@@ -8,17 +8,21 @@ import ChatList from './components/ChatList';
 import ChatWindow from './components/ChatWindow';
 import EmptyState from './components/EmptyState';
 import InstallPrompt from './components/InstallPrompt';
+import ProfileModal from './components/ProfileModal';
 import type { Profile } from './types';
 
 export function App() {
-  const { session, user, profile, loading, signIn, signUp, signOut } = useAuth();
+  const { session, user, profile, loading, signIn, signUp, signOut, updateProfile } = useAuth();
   const onlineIds = usePresence(user?.id);
   const { conversations, loading: conversationsLoading, upsertPeer } = useConversations(user?.id);
   const [activeUser, setActiveUser] = useState<Profile | null>(null);
+  const [browseAll, setBrowseAll] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const handleSelectUser = (u: Profile) => {
     setActiveUser(u);
     upsertPeer(u);
+    setBrowseAll(false);
   };
 
   if (loading) {
@@ -46,7 +50,13 @@ export function App() {
 
       <InstallPrompt />
 
-      <NavRail currentUser={profile} onSignOut={signOut} />
+      <NavRail
+        currentUser={profile}
+        browseAll={browseAll}
+        onToggleBrowseAll={() => setBrowseAll((v) => !v)}
+        onOpenProfile={() => setProfileOpen(true)}
+        onSignOut={signOut}
+      />
 
       <div className={`${activeUser ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full relative`}>
         <ChatList
@@ -55,6 +65,7 @@ export function App() {
           conversationsLoading={conversationsLoading}
           onlineIds={onlineIds}
           activeUserId={activeUser?.id}
+          browseAll={browseAll}
           onSelectUser={handleSelectUser}
         />
       </div>
@@ -71,6 +82,13 @@ export function App() {
           <EmptyState />
         )}
       </div>
+
+      <ProfileModal
+        open={profileOpen}
+        profile={profile}
+        onClose={() => setProfileOpen(false)}
+        onSave={updateProfile}
+      />
     </div>
   );
 }
