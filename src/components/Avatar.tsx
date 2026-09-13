@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 
 interface AvatarProps {
-  initials: string;
+  name: string;
+  avatarUrl?: string | null;
   status?: 'online' | 'offline' | 'away';
   size?: 'sm' | 'md' | 'lg';
   showStatus?: boolean;
@@ -30,8 +31,17 @@ const avatarColors = [
   'from-teal-500 to-green-600',
 ];
 
-export default function Avatar({ initials, status, size = 'md', showStatus = false }: AvatarProps) {
+function getInitials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+export default function Avatar({ name, avatarUrl, status, size = 'md', showStatus = false }: AvatarProps) {
   const s = sizeMap[size];
+  const initials = getInitials(name);
   const colorIdx = (initials.charCodeAt(0) + (initials.charCodeAt(1) || 0)) % avatarColors.length;
   const gradient = avatarColors[colorIdx];
 
@@ -40,9 +50,11 @@ export default function Avatar({ initials, status, size = 'md', showStatus = fal
       <motion.div
         whileHover={{ scale: 1.05 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        className={`${s.box} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center ${s.text} font-semibold text-white shadow-lg`}
+        className={`${s.box} rounded-full overflow-hidden flex items-center justify-center ${s.text} font-semibold text-white shadow-lg ${
+          avatarUrl ? '' : `bg-gradient-to-br ${gradient}`
+        }`}
       >
-        {initials}
+        {avatarUrl ? <img src={avatarUrl} alt={name} className="w-full h-full object-cover" /> : initials}
       </motion.div>
       {showStatus && status && (
         <span className={`absolute ${s.pos} ${s.dot} ${statusColors[status]} rounded-full ring-2 ring-zinc-900`} />
