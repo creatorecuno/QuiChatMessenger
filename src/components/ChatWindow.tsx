@@ -38,7 +38,10 @@ function formatDateLabel(iso: string) {
 }
 
 export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
-  const { messages, peerTyping, sendMessage, deleteMessage, notifyTyping } = useChat(currentUser.id, peer.id);
+  const { messages, peerTyping, sendMessage, deleteMessage, notifyTyping, sendError } = useChat(
+    currentUser.id,
+    peer.id
+  );
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -281,6 +284,12 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
         transition={spring}
         className="px-4 py-3 border-t border-white/5 glass-strong relative"
       >
+        {sendError && (
+          <div className="max-w-3xl mx-auto mb-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
+            Не удалось отправить: {sendError}
+          </div>
+        )}
+
         <div className="max-w-3xl mx-auto flex items-center gap-2">
           <motion.button
             whileHover={{ scale: 1.08 }}
