@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, MessageSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Profile {
@@ -54,7 +53,6 @@ export const ChatList: React.FC<ChatListProps> = ({ onSelectUser, activeUserId }
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Безопасное получение первой буквы имени (защита от краша charCodeAt)
   const getInitial = (name?: string | null, email?: string | null) => {
     const str = name || email || 'U';
     return str.charAt(0).toUpperCase() || 'U';
@@ -65,13 +63,12 @@ export const ChatList: React.FC<ChatListProps> = ({ onSelectUser, activeUserId }
       <div className="p-4 border-b border-slate-800">
         <h1 className="text-xl font-bold text-white mb-4">Messages</h1>
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search users by username..."
+            placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-700 placeholder-slate-400"
+            className="w-full bg-slate-800 text-white px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-700 placeholder-slate-400"
           />
         </div>
       </div>
@@ -104,13 +101,11 @@ export const ChatList: React.FC<ChatListProps> = ({ onSelectUser, activeUserId }
               </div>
               <div className="text-xs text-slate-400 truncate">Click to start chat</div>
             </div>
-            <UserPlus className="h-4 w-4 text-slate-400 shrink-0" />
           </button>
         ))}
 
         {!searchQuery && (
           <div className="p-8 text-center text-slate-500 text-sm">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
             Search for users to start chatting
           </div>
         )}
