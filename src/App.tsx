@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { ChatList } from './components/ChatList';
-import { AuthModal } from './components/AuthModal';
 
 export function App() {
   const [session, setSession] = useState<any>(null);
   const [activeUser, setActiveUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -21,6 +23,16 @@ export function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      const { error: signUpErr } = await supabase.auth.signUp({ email, password });
+      if (signUpErr) setAuthError(signUpErr.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen bg-slate-950 flex items-center justify-center text-white">
@@ -30,7 +42,33 @@ export function App() {
   }
 
   if (!session) {
-    return <AuthModal isOpen={true} onClose={() => {}} />;
+    return (
+      <div className="h-screen bg-slate-950 flex items-center justify-center p-4 text-white">
+        <form onSubmit={handleAuth} className="bg-slate-900 p-6 rounded-xl border border-slate-800 w-full max-w-sm space-y-4">
+          <h2 className="text-xl font-bold text-center">Вход в QuiChat</h2>
+          {authError && <div className="text-red-400 text-xs text-center">{authError}</div>}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+            required
+          />
+          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 p-2 rounded text-sm font-semibold transition-colors">
+            Войти / Зарегистрироваться
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (
