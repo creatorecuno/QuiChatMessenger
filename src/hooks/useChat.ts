@@ -7,10 +7,35 @@ function pairChannelName(a: string, b: string) {
 }
 
 export function useChat(currentUserId: string | undefined, peerId: string | undefined) {
+  // в начало функции useChat, рядом с остальными useState:
+const [sendError, setSendError] = useState<string | null>(null);
+
+// замени тело sendMessage на:
+const sendMessage = useCallback(
+  async (content: string) => {
+    if (!currentUserId || !peerId || !content.trim()) return;
+    setSendError(null);
+    const { error } = await supabase.from('messages').insert({
+      sender_id: currentUserId,
+      receiver_id: peerId,
+      content: content.trim(),
+      status: 'sent',
+    });
+    if (error) {
+      console.error('Error sending message:', error.message);
+      setSendError(error.message);
+    }
+  },
+  [currentUserId, peerId]
+);
+
+// и в конце функции добавь sendError в возвращаемый объект:
+return { messages, loading, peerTyping, sendMessage, deleteMessage, notifyTyping, sendError };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [peerTyping, setPeerTyping] = useState(false);
 
+  
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingReadyRef = useRef(false);
