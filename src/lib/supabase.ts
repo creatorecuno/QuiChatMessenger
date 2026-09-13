@@ -10,21 +10,4 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export interface Profile {
-  id: string;
-  username: string;
-  avatar_initials: string;
-  status_message: string;
-  online_status: 'online' | 'away' | 'offline';
-  is_typing: boolean;
-  created_at: string;
-}
-
-export interface MessageRow {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  content: string;
-  status: string;
-  created_at: string;
-}
+export type { Profile, ChatMessage } from '../types';
