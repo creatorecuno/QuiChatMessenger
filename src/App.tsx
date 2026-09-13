@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { ChatList } from './components/ChatList';
+import ChatArea from './components/ChatArea';
 
 export function App() {
   const [session, setSession] = useState<any>(null);
@@ -52,7 +53,7 @@ export function App() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white"
             required
           />
           <input
@@ -60,7 +61,7 @@ export function App() {
             placeholder="Пароль"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white"
             required
           />
           <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 p-2 rounded text-sm font-semibold transition-colors">
@@ -73,22 +74,43 @@ export function App() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      <ChatList 
-        onSelectUser={(user) => setActiveUser(user)} 
-        activeUserId={activeUser?.id} 
-      />
-      
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 p-6">
+      {/* Mini Nav Rail Sidebar */}
+      <div className="w-16 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 space-y-6">
+        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-indigo-600/30">
+          Q
+        </div>
+        <div className="flex-1 flex flex-col items-center space-y-4">
+          <button className="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+            💬
+          </button>
+        </div>
+        <button 
+          onClick={() => supabase.auth.signOut()} 
+          className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          title="Выйти"
+        >
+          🚪
+        </button>
+      </div>
+
+      {/* Main App Layout */}
+      <div className="flex flex-1 overflow-hidden">
+        <ChatList 
+          onSelectUser={(user) => setActiveUser(user)} 
+          activeUserId={activeUser?.id} 
+        />
+        
         {activeUser ? (
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2 text-white">
-              {activeUser.username || activeUser.email}
-            </h2>
-            <p className="text-slate-400">Пользователь выбран. Чат готов к работе.</p>
-          </div>
+          <ChatArea 
+            recipient={activeUser} 
+            currentUserId={session.user.id} 
+          />
         ) : (
-          <div className="text-center text-slate-500">
-            Выберите пользователя из списка слева
+          <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 text-slate-500">
+            <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 text-2xl">
+              💬
+            </div>
+            <p className="text-sm">Выберите пользователя из списка слева, чтобы начать общение</p>
           </div>
         )}
       </div>
