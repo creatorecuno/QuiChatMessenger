@@ -1,115 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Search, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-
-interface Profile {
-  id: string;
-  username: string | null;
-  email: string | null;
-  avatar_url?: string | null;
-}
+import Avatar from './Avatar';
+import type { ConversationPreview, Profile } from '../types';
 
 interface ChatListProps {
-  onSelectUser: (user: Profile) => void;
+  currentUserId: string;
+  conversations: ConversationPreview[];
+  conversationsLoading: boolean;
+  onlineIds: Set<string>;
   activeUserId?: string;
+  onSelectUser: (user: Profile) => void;
 }
 
-export const ChatList: React.FC<ChatListProps> = ({ onSelectUser, activeUserId }) => {
+function formatPreviewTime(iso: string) {
+  const date = new Date(iso);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+}
+
+export default function ChatList({
+  currentUserId,
+  conversations,
+  conversationsLoading,
+  onlineIds,
+  activeUserId,
+  onSelectUser,
+}: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
-    const searchUsers = async () => {
-      if (!searchQuery.trim()) {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', currentUserId)
+        .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+        .limit(15);
+
+      if (error) {
+        console.error('Search error:', error.message);
         setSearchResults([]);
-        return;
+      } else {
+        setSearchResults((data || []) as Profile[]);
       }
+      setSearching(false);
+    }, 300);
 
-      setLoading(true);
-      try {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, username, email, avatar_url')
-          .neq('id', currentUser?.id || '')
-          .or(`username.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
-          .limit(10);
-
-        if (error) {
-          console.error('Search error:', error);
-          setSearchResults([]);
-        } else {
-          setSearchResults(data || []);
-        }
-      } catch (err) {
-        console.error('Unexpected search error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const timer = setTimeout(searchUsers, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, currentUserId]);
 
-  const getInitial = (name?: string | null, email?: string | null) => {
-    const str = name || email || 'U';
-    return str.charAt(0).toUpperCase() || 'U';
-  };
+  const isSearchMode = searchQuery.trim().length > 0;
+  const knownPeerIds = new Set(conversations.map((c) => c.peer.id));
 
   return (
-    <div className="w-80 h-full bg-slate-900 border-r border-slate-800 flex flex-col">
-      <div className="p-4 border-b border-slate-800">
-        <h1 className="text-xl font-bold text-white mb-4">Messages</h1>
+    <div className="w-full md:w-80 h-full glass border-r border-white/5 flex flex-col shrink-0">
+      <div className="p-4 border-b border-white/5">
+        <h1 className="text-xl font-bold text-white mb-4 tracking-tight">Сообщения</h1>
         <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Найти человека..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-800 text-white px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-700 placeholder-slate-400"
+            className="w-full glass-input rounded-xl pl-10 pr-9 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-violet-500/40 transition-colors"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {loading && (
-          <div className="p-4 text-center text-slate-400 text-sm">Searching...</div>
-        )}
-
-        {!loading && searchQuery && searchResults.length === 0 && (
-          <div className="p-4 text-center text-slate-400 text-sm">No users found</div>
-        )}
-
-        {!loading && searchResults.map((user) => (
-          <button
-            key={user.id}
-            onClick={() => onSelectUser(user)}
-            className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
-              activeUserId === user.id
-                ? 'bg-indigo-600 text-white'
-                : 'hover:bg-slate-800 text-slate-200'
-            }`}
-          >
-            <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 font-semibold flex items-center justify-center border border-indigo-500/30 shrink-0">
-              {getInitial(user.username, user.email)}
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <div className="font-medium truncate text-sm">
-                {user.username || user.email || 'Unknown User'}
-              </div>
-              <div className="text-xs text-slate-400 truncate">Click to start chat</div>
-            </div>
-          </button>
-        ))}
-
-        {!searchQuery && (
-          <div className="p-8 text-center text-slate-500 text-sm">
-            Search for users to start chatting
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+        {isSearchMode ? (
+          <>
+            {searching && <div className="p-4 text-center text-zinc-500 text-sm">Ищем...</div>}
+            {!searching && searchResults.length === 0 && (
+              <div className="p-4 text-center text-zinc-500 text-sm">Никого не нашли</div>
+            )}
+            {!searching &&
+              searchResults.map((user) => (
+                <ContactRow
+                  key={user.id}
+                  user={user}
+                  isOnline={onlineIds.has(user.id)}
+                  isActive={activeUserId === user.id}
+                  subtitle={knownPeerIds.has(user.id) ? 'Уже переписываетесь' : 'Написать первым'}
+                  onClick={() => onSelectUser(user)}
+                />
+              ))}
+          </>
+        ) : conversationsLoading ? (
+          <div className="p-4 text-center text-zinc-500 text-sm">Загружаем чаты...</div>
+        ) : conversations.length === 0 ? (
+          <div className="p-8 text-center text-zinc-500 text-sm leading-relaxed">
+            Пока пусто. Найдите собеседника через поиск выше, чтобы начать первый чат.
           </div>
+        ) : (
+          conversations.map(({ peer, lastMessage }) => (
+            <ContactRow
+              key={peer.id}
+              user={peer}
+              isOnline={onlineIds.has(peer.id)}
+              isActive={activeUserId === peer.id}
+              subtitle={lastMessage ? lastMessage.content : 'Нет сообщений'}
+              timestamp={lastMessage ? formatPreviewTime(lastMessage.created_at) : undefined}
+              onClick={() => onSelectUser(peer)}
+            />
+          ))
         )}
       </div>
     </div>
   );
-};
+}
+
+interface ContactRowProps {
+  user: Profile;
+  isOnline: boolean;
+  isActive: boolean;
+  subtitle: string;
+  timestamp?: string;
+  onClick: () => void;
+}
+
+function ContactRow({ user, isOnline, isActive, subtitle, timestamp, onClick }: ContactRowProps) {
+  return (
+    <motion.button
+      whileHover={{ x: 2 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors text-left ${
+        isActive ? 'bg-violet-500/15 border border-violet-500/30' : 'hover:bg-white/5 border border-transparent'
+      }`}
+    >
+      <Avatar
+        name={user.username || user.email}
+        avatarUrl={user.avatar_url}
+        status={isOnline ? 'online' : 'offline'}
+        showStatus
+        size="md"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium text-sm text-white truncate">{user.username || user.email}</span>
+          {timestamp && <span className="text-[10px] text-zinc-500 shrink-0">{timestamp}</span>}
+        </div>
+        <p className="text-xs text-zinc-500 truncate mt-0.5">{subtitle}</p>
+      </div>
+    </motion.button>
+  );
+}
