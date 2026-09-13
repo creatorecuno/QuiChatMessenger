@@ -11,6 +11,7 @@ interface ChatListProps {
   conversationsLoading: boolean;
   onlineIds: Set<string>;
   activeUserId?: string;
+  browseAll: boolean;
   onSelectUser: (user: Profile) => void;
 }
 
@@ -29,6 +30,7 @@ export default function ChatList({
   conversationsLoading,
   onlineIds,
   activeUserId,
+  browseAll,
   onSelectUser,
 }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,39 +39,43 @@ export default function ChatList({
 
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!query) {
+    if (!query && !browseAll) {
       setSearchResults([]);
       return;
     }
 
     setSearching(true);
-    const timer = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUserId)
-        .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
-        .limit(15);
+    const timer = setTimeout(
+      async () => {
+        let request = supabase.from('profiles').select('*').neq('id', currentUserId).limit(50);
+        request = query
+          ? request.or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+          : request.order('username', { ascending: true });
 
-      if (error) {
-        console.error('Search error:', error.message);
-        setSearchResults([]);
-      } else {
-        setSearchResults((data || []) as Profile[]);
-      }
-      setSearching(false);
-    }, 300);
+        const { data, error } = await request;
+        if (error) {
+          console.error('Search error:', error.message);
+          setSearchResults([]);
+        } else {
+          setSearchResults((data || []) as Profile[]);
+        }
+        setSearching(false);
+      },
+      query ? 300 : 0
+    );
 
     return () => clearTimeout(timer);
-  }, [searchQuery, currentUserId]);
+  }, [searchQuery, currentUserId, browseAll]);
 
-  const isSearchMode = searchQuery.trim().length > 0;
+  const isBrowseMode = searchQuery.trim().length > 0 || browseAll;
   const knownPeerIds = new Set(conversations.map((c) => c.peer.id));
 
   return (
     <div className="w-full md:w-80 h-full glass border-r border-white/5 flex flex-col shrink-0">
       <div className="p-4 border-b border-white/5">
-        <h1 className="text-xl font-bold text-white mb-4 tracking-tight">Сообщения</h1>
+        <h1 className="text-xl font-bold text-white mb-4 tracking-tight">
+          {browseAll && !searchQuery ? 'Все пользователи' : 'Сообщения'}
+        </h1>
         <div className="relative">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
@@ -91,7 +97,7 @@ export default function ChatList({
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
-        {isSearchMode ? (
+        {isBrowseMode ? (
           <>
             {searching && <div className="p-4 text-center text-zinc-500 text-sm">Ищем...</div>}
             {!searching && searchResults.length === 0 && (
