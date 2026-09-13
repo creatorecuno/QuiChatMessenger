@@ -1,4 +1,5 @@
 export type OnlineStatus = 'online' | 'offline' | 'away';
+export type MessageType = 'text' | 'image' | 'file' | 'voice';
 
 export interface Profile {
   id: string;
@@ -17,6 +18,11 @@ export interface ChatMessage {
   content: string;
   status: 'sent' | 'delivered' | 'read';
   created_at: string;
+  message_type: MessageType;
+  file_url: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  duration_seconds: number | null;
 }
 
 export interface ConversationPreview {
@@ -25,11 +31,6 @@ export interface ConversationPreview {
   unreadCount: number;
 }
 
-/*
- * Ниже — старые типы под мок-компонент SettingsModal.tsx.
- * Он пока не подключён к реальным данным (этап 2), поэтому
- * оставляю эти типы, чтобы файл не сломался структурно.
- */
 export interface UserProfile {
   name: string;
   avatar: string;
