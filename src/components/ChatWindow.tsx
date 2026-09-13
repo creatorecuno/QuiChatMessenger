@@ -1,19 +1,19 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Phone, Video, Info, Send, Paperclip, Smile, Search, X, Mic, Reply, Trash2 } from 'lucide-react';
-import { useRef, useEffect, useState, useCallback } from 'react';
-import type { Contact, Message } from '../types';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
 import DateSeparator from './DateSeparator';
 import EmojiPicker from './EmojiPicker';
 import ContextMenu from './ContextMenu';
+import { useChat } from '../hooks/useChat';
+import type { ChatMessage, Profile } from '../types';
 
 interface ChatWindowProps {
-  contact: Contact;
-  messages: Message[];
+  currentUser: Profile;
+  peer: Profile;
+  isPeerOnline: boolean;
   onBack: () => void;
-  onSend: (content: string) => void;
-  onDeleteMessage: (messageId: string) => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
@@ -24,34 +24,53 @@ interface ContextMenuState {
   messageId: string;
 }
 
-export default function ChatWindow({ contact, messages, onBack, onSend, onDeleteMessage }: ChatWindowProps) {
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateLabel(iso: string) {
+  const date = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 86400000);
+  if (date.toDateString() === today.toDateString()) return 'Сегодня';
+  if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
+  const { messages, peerTyping, sendMessage, deleteMessage, notifyTyping } = useChat(currentUser.id, peer.id);
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages.length, peerTyping]);
 
   const handleSend = useCallback(() => {
     if (!input.trim()) return;
-    onSend(input.trim());
+    const content = replyTo ? `> ${replyTo.content}\n${input.trim()}` : input.trim();
+    sendMessage(content);
     setInput('');
     setReplyTo(null);
-  }, [input, onSend]);
+  }, [input, replyTo, sendMessage]);
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    notifyTyping();
   };
 
   const handleContextMenu = (e: React.MouseEvent, messageId: string) => {
@@ -69,10 +88,6 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
     if (msg) setReplyTo(msg);
   };
 
-  const handleDelete = (messageId: string) => {
-    onDeleteMessage(messageId);
-  };
-
   const handleTouchStart = (e: React.TouchEvent, messageId: string) => {
     const touch = e.touches[0];
     touchTimerRef.current = setTimeout(() => {
@@ -84,25 +99,24 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
     if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
   };
 
-  // Filter messages by search
   const filteredMessages = searchQuery
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : messages;
 
-  // Group messages by date
   let lastDate: string | null = null;
   let lastSenderId: string | null = null;
 
+  const displayName = peer.username || peer.email;
+
   const headerActions = [
-    { icon: Search, label: 'Search', onClick: () => setShowSearch(!showSearch) },
-    { icon: Phone, label: 'Call', onClick: () => {} },
-    { icon: Video, label: 'Video', onClick: () => {} },
-    { icon: Info, label: 'Info', onClick: () => {} },
+    { icon: Search, label: 'Search', onClick: () => setShowSearch((v) => !v), enabled: true },
+    { icon: Phone, label: 'Call', onClick: () => {}, enabled: false },
+    { icon: Video, label: 'Video', onClick: () => {}, enabled: false },
+    { icon: Info, label: 'Info', onClick: () => {}, enabled: false },
   ];
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
+    <div className="flex flex-col h-full flex-1 min-w-0">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -114,38 +128,42 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
           whileTap={{ scale: 0.92 }}
           transition={spring}
           onClick={onBack}
-          className="lg:hidden w-9 h-9 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+          className="md:hidden w-9 h-9 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
         >
           <ArrowLeft size={18} />
         </motion.button>
 
-        <Avatar initials={contact.avatar} status={contact.status} showStatus size="md" />
+        <Avatar name={displayName} avatarUrl={peer.avatar_url} status={isPeerOnline ? 'online' : 'offline'} showStatus size="md" />
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-bold text-white truncate">{contact.name}</h2>
+          <h2 className="text-sm font-bold text-white truncate">{displayName}</h2>
           <p className="text-xs text-zinc-500 truncate">
-            {contact.isTyping ? (
-              <span className="text-violet-400">typing...</span>
-            ) : contact.status === 'online' ? (
+            {peerTyping ? (
+              <span className="text-violet-400">печатает...</span>
+            ) : isPeerOnline ? (
               <span className="text-green-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 status-online" />
-                Active now
+                В сети
               </span>
             ) : (
-              `Last seen ${contact.lastSeen}`
+              'Не в сети'
             )}
           </p>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {headerActions.map(({ icon: Icon, label, onClick }) => (
+          {headerActions.map(({ icon: Icon, label, onClick, enabled }) => (
             <motion.button
               key={label}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={enabled ? { scale: 1.08 } : {}}
+              whileTap={enabled ? { scale: 0.92 } : {}}
               transition={spring}
-              onClick={onClick}
+              onClick={enabled ? onClick : undefined}
+              disabled={!enabled}
+              title={enabled ? label : `${label} — скоро`}
               className={`w-9 h-9 rounded-xl glass flex items-center justify-center transition-colors ${
-                (label === 'Search' && showSearch)
+                !enabled
+                  ? 'text-zinc-600 opacity-50 cursor-not-allowed'
+                  : label === 'Search' && showSearch
                   ? 'text-violet-400 border border-violet-500/30'
                   : 'text-zinc-400 hover:text-violet-400'
               }`}
@@ -156,7 +174,6 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
         </div>
       </motion.div>
 
-      {/* Search in chat */}
       <AnimatePresence>
         {showSearch && (
           <motion.div
@@ -171,7 +188,7 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search in this conversation..."
+                placeholder="Поиск по переписке..."
                 autoFocus
                 className="w-full glass-input rounded-xl py-2 pl-10 pr-8 text-sm text-white placeholder-zinc-500 outline-none focus:border-violet-500/40 transition-colors"
               />
@@ -186,35 +203,38 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
             </div>
             {searchQuery && (
               <p className="text-xs text-zinc-500 mt-2 px-1">
-                {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''}
+                {filteredMessages.length} результат{filteredMessages.length === 1 ? '' : 'ов'}
               </p>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
         <div className="max-w-3xl mx-auto">
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center text-zinc-500 text-sm pt-24 text-center px-8">
+              Напишите первое сообщение, чтобы начать переписку с {displayName}
+            </div>
+          )}
           <AnimatePresence mode="popLayout">
             {filteredMessages.map((msg) => {
-              const isMine = msg.senderId === 'me';
-              const showAvatar = msg.senderId !== lastSenderId;
-              const showDate = msg.date !== lastDate;
-              lastDate = msg.date;
-              lastSenderId = msg.senderId;
+              const isMine = msg.sender_id === currentUser.id;
+              const showAvatar = msg.sender_id !== lastSenderId;
+              const dateLabel = formatDateLabel(msg.created_at);
+              const showDate = dateLabel !== lastDate;
+              lastDate = dateLabel;
+              lastSenderId = msg.sender_id;
               return (
-                <div
-                  key={msg.id}
-                  onTouchStart={(e) => handleTouchStart(e, msg.id)}
-                  onTouchEnd={handleTouchEnd}
-                >
-                  {showDate && <DateSeparator label={msg.date} />}
+                <div key={msg.id} onTouchStart={(e) => handleTouchStart(e, msg.id)} onTouchEnd={handleTouchEnd}>
+                  {showDate && <DateSeparator label={dateLabel} />}
                   <MessageBubble
                     message={msg}
                     isMine={isMine}
                     showAvatar={showAvatar}
-                    avatarInitials={contact.avatar}
+                    avatarName={displayName}
+                    avatarUrl={peer.avatar_url}
+                    timeLabel={formatTime(msg.created_at)}
                     onContextMenu={handleContextMenu}
                     isReplyTarget={replyTo?.id === msg.id}
                   />
@@ -222,12 +242,11 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
               );
             })}
           </AnimatePresence>
-          {contact.isTyping && <TypingBubble avatarInitials={contact.avatar} />}
+          {peerTyping && <TypingBubble avatarName={displayName} avatarUrl={peer.avatar_url} />}
           <div ref={endRef} className="h-1" />
         </div>
       </div>
 
-      {/* Reply preview */}
       <AnimatePresence>
         {replyTo && (
           <motion.div
@@ -240,8 +259,8 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
             <div className="flex items-start gap-2 max-w-3xl mx-auto">
               <div className="w-1 h-full rounded-full gradient-accent shrink-0 self-stretch" />
               <div className="flex-1 min-w-0 py-1">
-                <p className="text-xs text-violet-400 font-medium flex items-center gap-1">
-                  <Reply size={11} /> Replying to {replyTo.senderId === 'me' ? 'yourself' : contact.name}
+                <p className="text-xs text-violet-400 font-medium">
+                  Ответ {replyTo.sender_id === currentUser.id ? 'себе' : displayName}
                 </p>
                 <p className="text-xs text-zinc-500 truncate mt-0.5">{replyTo.content}</p>
               </div>
@@ -256,7 +275,6 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
         )}
       </AnimatePresence>
 
-      {/* Input */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -264,48 +282,39 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
         className="px-4 py-3 border-t border-white/5 glass-strong relative"
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
-          {/* Attachment */}
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             transition={spring}
+            title="Медиа-вложения появятся на следующем этапе"
             className="w-10 h-10 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-violet-400 transition-colors shrink-0"
           >
             <Paperclip size={18} />
           </motion.button>
 
-          {/* Input with emoji */}
           <div className="flex-1 flex items-center gap-2 glass-input rounded-xl px-4 py-2.5 relative">
             <input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKey}
-              placeholder="Type a message..."
+              placeholder="Напишите сообщение..."
               className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
             />
             <motion.button
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
               transition={spring}
-              onClick={() => setShowEmoji(!showEmoji)}
+              onClick={() => setShowEmoji((v) => !v)}
               className={`transition-colors ${showEmoji ? 'text-violet-400' : 'text-zinc-500 hover:text-violet-400'}`}
             >
               <Smile size={18} />
             </motion.button>
 
-            {/* Emoji picker */}
             {showEmoji && (
-              <EmojiPicker
-                onPick={(emoji) => {
-                  setInput((prev) => prev + emoji);
-                  setShowEmoji(false);
-                }}
-                onClose={() => setShowEmoji(false)}
-              />
+              <EmojiPicker onPick={(emoji) => setInput((prev) => prev + emoji)} onClose={() => setShowEmoji(false)} />
             )}
           </div>
 
-          {/* Send / Voice button */}
           {input.trim() ? (
             <motion.button
               whileHover={{ scale: 1.08 }}
@@ -321,7 +330,8 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={spring}
-              onClick={() => setIsRecording(!isRecording)}
+              onClick={() => setIsRecording((v) => !v)}
+              title="Голосовые сообщения появятся на следующем этапе"
               className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
                 isRecording ? 'gradient-accent text-white glow-accent-strong' : 'glass text-zinc-400 hover:text-violet-400'
               }`}
@@ -336,7 +346,6 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
           )}
         </div>
 
-        {/* Recording bar */}
         <AnimatePresence>
           {isRecording && (
             <motion.div
@@ -353,42 +362,30 @@ export default function ChatWindow({ contact, messages, onBack, onSend, onDelete
                     transition={{ duration: 1.2, repeat: Infinity }}
                     className="w-2.5 h-2.5 rounded-full bg-rose-500"
                   />
-                  <span className="text-sm text-zinc-400">Recording voice message...</span>
+                  <span className="text-sm text-zinc-400">Голосовые сообщения — скоро</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsRecording(false)}
-                    className="px-3 py-1 rounded-lg glass text-xs text-zinc-400 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={spring}
-                    onClick={() => setIsRecording(false)}
-                    className="px-3 py-1 rounded-lg gradient-accent text-xs text-white font-medium glow-accent flex items-center gap-1"
-                  >
-                    <Send size={12} /> Send
-                  </motion.button>
-                </div>
+                <button
+                  onClick={() => setIsRecording(false)}
+                  className="px-3 py-1 rounded-lg glass text-xs text-zinc-400 hover:text-white transition-colors"
+                >
+                  Отмена
+                </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
 
-      {/* Context menu */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           messageId={contextMenu.messageId}
-          isMine={messages.find((m) => m.id === contextMenu.messageId)?.senderId === 'me'}
+          isMine={messages.find((m) => m.id === contextMenu.messageId)?.sender_id === currentUser.id}
           onClose={() => setContextMenu(null)}
           onReply={handleReply}
           onCopy={handleCopy}
-          onDelete={handleDelete}
+          onDelete={deleteMessage}
         />
       )}
     </div>
