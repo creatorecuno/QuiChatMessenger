@@ -1,265 +1,120 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Check, Settings, Loader2 } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
-import type { Contact } from '../types';
-import { supabase, Profile } from '../lib/supabase';
-import Avatar from './Avatar';
+import React, { useState, useEffect } from 'react';
+import { Search, UserPlus, MessageSquare } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-interface ChatListProps {
-  contacts: Contact[];
-  activeChatId: string | null;
-  onSelect: (id: string) => void;
-  onOpenSettings: () => void;
-  profileName: string;
-  profileStatus: string;
-  currentUserId: string;
+interface Profile {
+  id: string;
+  username: string | null;
+  email: string | null;
+  avatar_url?: string | null;
 }
 
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
+interface ChatListProps {
+  onSelectUser: (user: Profile) => void;
+  activeUserId?: string;
+}
 
-export default function ChatList({
-  contacts,
-  activeChatId,
-  onSelect,
-  onOpenSettings,
-  profileName,
-  profileStatus,
-  currentUserId,
-}: ChatListProps) {
-  const [search, setSearch] = useState('');
+export const ChatList: React.FC<ChatListProps> = ({ onSelectUser, activeUserId }) => {
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Debounced Supabase search for users by username
   useEffect(() => {
-    if (!search.trim()) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
-    }
-
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('username', `%${search.trim()}%`)
-        .neq('id', currentUserId)
-        .limit(20);
-
-      if (error) {
-        console.error('Search error:', error.message);
+    const searchUsers = async () => {
+      if (!searchQuery.trim()) {
         setSearchResults([]);
-      } else {
-        setSearchResults((data as Profile[]) || []);
+        return;
       }
-      setSearching(false);
-    }, 300);
 
+      setLoading(true);
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar_url')
+          .neq('id', currentUser?.id || '')
+          .or(`username.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+          .limit(10);
+
+        if (error) {
+          console.error('Search error:', error);
+          setSearchResults([]);
+        } else {
+          setSearchResults(data || []);
+        }
+      } catch (err) {
+        console.error('Unexpected search error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(searchUsers, 300);
     return () => clearTimeout(timer);
-  }, [search, currentUserId]);
+  }, [searchQuery]);
 
-  const isSearching = search.trim().length > 0;
-
-  const existingIds = useMemo(() => new Set(contacts.map((c) => c.id)), [contacts]);
-
-  const profileToContact = (p: Profile): Contact => {
-    const lastSeenMap: Record<string, string> = {
-      online: 'Active now',
-      away: 'Away',
-      offline: 'Offline',
-    };
-    return {
-      id: p.id,
-      name: p.username,
-      avatar: p.avatar_initials,
-      status: p.online_status as 'online' | 'offline' | 'away',
-      lastSeen: lastSeenMap[p.online_status] || 'Offline',
-      unread: 0,
-      isTyping: p.is_typing,
-      isFavorite: false,
-      bio: p.status_message,
-    };
-  };
-
-  const handleSelectSearchResult = (profile: Profile) => {
-    setSearch('');
-    onSelect(profile.id);
+  // Безопасное получение первой буквы имени (защита от краша charCodeAt)
+  const getInitial = (name?: string | null, email?: string | null) => {
+    const str = name || email || 'U';
+    return str.charAt(0).toUpperCase() || 'U';
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-3">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Messages</h1>
-          </div>
-        </div>
-
-        {/* Search */}
+    <div className="w-80 h-full bg-slate-900 border-r border-slate-800 flex flex-col">
+      <div className="p-4 border-b border-slate-800">
+        <h1 className="text-xl font-bold text-white mb-4">Messages</h1>
         <div className="relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            type="text"
             placeholder="Search users by username..."
-            className="w-full glass-input rounded-xl py-2.5 pl-10 pr-10 text-sm text-white placeholder-zinc-500 outline-none focus:border-violet-500/40 transition-colors"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-700 placeholder-slate-400"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            {searching ? (
-              <Loader2 size={14} className="animate-spin text-zinc-500" />
-            ) : search ? (
-              <button
-                onClick={() => setSearch('')}
-                className="text-zinc-500 hover:text-white transition-colors text-xs"
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
         </div>
       </div>
 
-      {/* List area: search results or existing contacts */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 pb-3">
-        <AnimatePresence mode="popLayout">
-          {isSearching ? (
-            // Search results
-            searchResults.length === 0 && !searching ? (
-              <motion.div
-                key="no-results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={spring}
-                className="flex flex-col items-center justify-center py-16 text-zinc-600"
-              >
-                <Search size={32} className="mb-3 opacity-40" />
-                <p className="text-sm">No users found</p>
-              </motion.div>
-            ) : (
-              searchResults.map((profile) => {
-                const contact = profileToContact(profile);
-                const exists = existingIds.has(profile.id);
-                return (
-                  <motion.button
-                    key={profile.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={spring}
-                    onClick={() => handleSelectSearchResult(profile)}
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 group transition-colors relative"
-                  >
-                    {activeChatId === profile.id && (
-                      <motion.div
-                        layoutId="active-chat"
-                        transition={spring}
-                        className="absolute inset-0 rounded-xl glass-strong border border-violet-500/20"
-                      />
-                    )}
-                    <Avatar initials={contact.avatar} status={contact.status} showStatus size="md" />
-                    <div className="flex-1 min-w-0 text-left relative z-10">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-white truncate">
-                          {contact.name}
-                        </span>
-                        {!exists && (
-                          <span className="text-[10px] text-violet-400 font-medium shrink-0 ml-2">
-                            New
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-zinc-500 truncate block mt-0.5">
-                        {contact.bio}
-                      </span>
-                    </div>
-                  </motion.button>
-                );
-              })
-            )
-          ) : contacts.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={spring}
-              className="flex flex-col items-center justify-center py-16 text-zinc-600"
-            >
-              <Search size={32} className="mb-3 opacity-40" />
-              <p className="text-sm">Search to start a conversation</p>
-            </motion.div>
-          ) : (
-            contacts.map((contact) => (
-              <motion.button
-                key={contact.id}
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={spring}
-                onClick={() => onSelect(contact.id)}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 group transition-colors relative"
-              >
-                {activeChatId === contact.id && (
-                  <motion.div
-                    layoutId="active-chat"
-                    transition={spring}
-                    className="absolute inset-0 rounded-xl glass-strong border border-violet-500/20"
-                  />
-                )}
-                <Avatar initials={contact.avatar} status={contact.status} showStatus size="md" />
-                <div className="flex-1 min-w-0 text-left relative z-10">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-white truncate flex items-center gap-1.5">
-                      {contact.name}
-                      {contact.isFavorite && <span className="text-violet-400 text-[10px]">&#9733;</span>}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 shrink-0 ml-2">{contact.lastSeen}</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    {contact.isTyping ? (
-                      <span className="text-xs text-violet-400 font-medium">typing...</span>
-                    ) : (
-                      <span className="text-xs text-zinc-500 truncate">{contact.bio}</span>
-                    )}
-                    {contact.unread > 0 && (
-                      <span className="ml-2 shrink-0 min-w-[18px] h-[18px] px-1 rounded-full gradient-accent text-white text-[10px] font-bold flex items-center justify-center glow-accent">
-                        {contact.unread}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </motion.button>
-            ))
-          )}
-        </AnimatePresence>
-      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {loading && (
+          <div className="p-4 text-center text-slate-400 text-sm">Searching...</div>
+        )}
 
-      {/* Current user footer */}
-      <div className="px-5 py-4 border-t border-white/5">
-        <div className="flex items-center gap-3">
-          <Avatar initials="ME" status="online" showStatus size="md" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">{profileName}</p>
-            <p className="text-xs text-green-400 flex items-center gap-1">
-              <Check size={10} /> {profileStatus}
-            </p>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            transition={spring}
-            onClick={onOpenSettings}
-            className="w-9 h-9 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-violet-400 transition-colors"
+        {!loading && searchQuery && searchResults.length === 0 && (
+          <div className="p-4 text-center text-slate-400 text-sm">No users found</div>
+        )}
+
+        {!loading && searchResults.map((user) => (
+          <button
+            key={user.id}
+            onClick={() => onSelectUser(user)}
+            className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+              activeUserId === user.id
+                ? 'bg-indigo-600 text-white'
+                : 'hover:bg-slate-800 text-slate-200'
+            }`}
           >
-            <Settings size={17} />
-          </motion.button>
-        </div>
+            <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 font-semibold flex items-center justify-center border border-indigo-500/30 shrink-0">
+              {getInitial(user.username, user.email)}
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="font-medium truncate text-sm">
+                {user.username || user.email || 'Unknown User'}
+              </div>
+              <div className="text-xs text-slate-400 truncate">Click to start chat</div>
+            </div>
+            <UserPlus className="h-4 w-4 text-slate-400 shrink-0" />
+          </button>
+        ))}
+
+        {!searchQuery && (
+          <div className="p-8 text-center text-slate-500 text-sm">
+            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            Search for users to start chatting
+          </div>
+        )}
       </div>
     </div>
   );
-}
+};
