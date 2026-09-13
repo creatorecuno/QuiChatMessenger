@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
-import { emojiCategories } from '../data';
+import { emojiCategories } from '../lib/emojis';
 
 interface EmojiPickerProps {
   onPick: (emoji: string) => void;
@@ -21,7 +21,6 @@ export default function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
         transition={spring}
         className="absolute bottom-full left-0 mb-2 glass-strong rounded-2xl p-3 shadow-2xl w-[320px] z-30 origin-bottom-left"
       >
-        {/* Category tabs */}
         <div className="flex items-center gap-1 mb-2 pb-2 border-b border-white/5">
           {emojiCategories.map((cat, i) => (
             <button
@@ -43,7 +42,6 @@ export default function EmojiPicker({ onPick, onClose }: EmojiPickerProps) {
           ))}
         </div>
 
-        {/* Emoji grid */}
         <div className="grid grid-cols-8 gap-1 max-h-[200px] overflow-y-auto scrollbar-thin">
           {emojiCategories[activeCategory].emojis.map((emoji, i) => (
             <motion.button
