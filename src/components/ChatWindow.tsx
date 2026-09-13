@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -7,6 +7,7 @@ import DateSeparator from './DateSeparator';
 import EmojiPicker from './EmojiPicker';
 import ContextMenu from './ContextMenu';
 import { useChat } from '../hooks/useChat';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import type { ChatMessage, Profile } from '../types';
 
 interface ChatWindowProps {
@@ -37,20 +38,34 @@ function formatDateLabel(iso: string) {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
+function formatRecDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
-  const { messages, peerTyping, sendMessage, deleteMessage, notifyTyping, sendError } = useChat(
-    currentUser.id,
-    peer.id
-  );
+  const {
+    messages,
+    peerTyping,
+    sendMessage,
+    sendMediaMessage,
+    deleteMessage,
+    notifyTyping,
+    sendError,
+    uploading,
+  } = useChat(currentUser.id, peer.id);
+  const voice = useVoiceRecorder();
+
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,6 +115,25 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
 
   const handleTouchEnd = () => {
     if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const type = file.type.startsWith('image/') ? 'image' : 'file';
+    await sendMediaMessage(file, type, file.name);
+  };
+
+  const handleMicClick = async () => {
+    if (!voice.isRecording) {
+      await voice.start();
+      return;
+    }
+    const result = await voice.stop();
+    if (result) {
+      await sendMediaMessage(result.blob, 'voice', `voice-${Date.now()}.webm`, result.duration);
+    }
   };
 
   const filteredMessages = searchQuery
@@ -290,96 +324,128 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
           </div>
         )}
 
-        <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            transition={spring}
-            title="Медиа-вложения появятся на следующем этапе"
-            className="w-10 h-10 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-violet-400 transition-colors shrink-0"
-          >
-            <Paperclip size={18} />
-          </motion.button>
-
-          <div className="flex-1 flex items-center gap-2 glass-input rounded-xl px-4 py-2.5 relative">
-            <input
-              value={input}
-              onChange={(e) => handleInputChange(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Напишите сообщение..."
-              className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+        {uploading && (
+          <div className="max-w-3xl mx-auto mb-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 flex items-center gap-2">
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="w-1.5 h-1.5 rounded-full bg-violet-400"
             />
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              transition={spring}
-              onClick={() => setShowEmoji((v) => !v)}
-              className={`transition-colors ${showEmoji ? 'text-violet-400' : 'text-zinc-500 hover:text-violet-400'}`}
-            >
-              <Smile size={18} />
-            </motion.button>
-
-            {showEmoji && (
-              <EmojiPicker onPick={(emoji) => setInput((prev) => prev + emoji)} onClose={() => setShowEmoji(false)} />
-            )}
+            Загружаем...
           </div>
+        )}
 
-          {input.trim() ? (
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              transition={spring}
-              onClick={handleSend}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 gradient-accent text-white glow-accent"
-            >
-              <Send size={18} />
-            </motion.button>
-          ) : (
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              transition={spring}
-              onClick={() => setIsRecording((v) => !v)}
-              title="Голосовые сообщения появятся на следующем этапе"
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                isRecording ? 'gradient-accent text-white glow-accent-strong' : 'glass text-zinc-400 hover:text-violet-400'
-              }`}
-            >
-              <motion.div
-                animate={isRecording ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-                transition={isRecording ? { duration: 1, repeat: Infinity } : {}}
-              >
-                <Mic size={18} />
-              </motion.div>
-            </motion.button>
-          )}
-        </div>
+        {voice.error && (
+          <div className="max-w-3xl mx-auto mb-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
+            {voice.error}
+          </div>
+        )}
 
-        <AnimatePresence>
-          {isRecording && (
+        <input ref={fileInputRef} type="file" onChange={handleFileChange} className="hidden" />
+
+        <AnimatePresence mode="wait">
+          {voice.isRecording ? (
             <motion.div
+              key="recording"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={spring}
-              className="overflow-hidden max-w-3xl mx-auto"
+              className="max-w-3xl mx-auto flex items-center gap-3"
             >
-              <div className="flex items-center justify-between py-2.5 px-1">
-                <div className="flex items-center gap-2">
-                  <motion.div
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 1.2, repeat: Infinity }}
-                    className="w-2.5 h-2.5 rounded-full bg-rose-500"
-                  />
-                  <span className="text-sm text-zinc-400">Голосовые сообщения — скоро</span>
-                </div>
-                <button
-                  onClick={() => setIsRecording(false)}
-                  className="px-3 py-1 rounded-lg glass text-xs text-zinc-400 hover:text-white transition-colors"
+              <motion.div
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="w-3 h-3 rounded-full bg-rose-500 shrink-0"
+              />
+              <span className="text-sm text-white font-medium">{formatRecDuration(voice.duration)}</span>
+              <span className="text-xs text-zinc-500 flex-1">Идёт запись голосового...</span>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={voice.cancel}
+                className="px-3 py-2 rounded-xl glass text-xs text-zinc-400 hover:text-white transition-colors"
+              >
+                Отмена
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={handleMicClick}
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 gradient-accent text-white glow-accent"
+              >
+                <Square size={16} fill="currentColor" />
+              </motion.button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="composer"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={spring}
+              className="max-w-3xl mx-auto flex items-center gap-2"
+            >
+              <motion.button
+                whileHover={{ scale: uploading ? 1 : 1.08 }}
+                whileTap={{ scale: uploading ? 1 : 0.92 }}
+                transition={spring}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                title="Прикрепить фото или файл"
+                className="w-10 h-10 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-violet-400 transition-colors shrink-0 disabled:opacity-50"
+              >
+                <Paperclip size={18} />
+              </motion.button>
+
+              <div className="flex-1 flex items-center gap-2 glass-input rounded-xl px-4 py-2.5 relative">
+                <input
+                  value={input}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder="Напишите сообщение..."
+                  className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={spring}
+                  onClick={() => setShowEmoji((v) => !v)}
+                  className={`transition-colors ${showEmoji ? 'text-violet-400' : 'text-zinc-500 hover:text-violet-400'}`}
                 >
-                  Отмена
-                </button>
+                  <Smile size={18} />
+                </motion.button>
+
+                {showEmoji && (
+                  <EmojiPicker
+                    onPick={(emoji) => setInput((prev) => prev + emoji)}
+                    onClose={() => setShowEmoji(false)}
+                  />
+                )}
               </div>
+
+              {input.trim() ? (
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  transition={spring}
+                  onClick={handleSend}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 gradient-accent text-white glow-accent"
+                >
+                  <Send size={18} />
+                </motion.button>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: uploading ? 1 : 1.08 }}
+                  whileTap={{ scale: uploading ? 1 : 0.92 }}
+                  transition={spring}
+                  onClick={handleMicClick}
+                  disabled={uploading}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 glass text-zinc-400 hover:text-violet-400 transition-colors disabled:opacity-50"
+                >
+                  <Mic size={18} />
+                </motion.button>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
