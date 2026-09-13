@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, SlidersHorizontal, Check, Settings } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Search, Check, Settings, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Contact } from '../types';
+import { supabase, Profile } from '../lib/supabase';
 import Avatar from './Avatar';
 
 interface ChatListProps {
@@ -11,34 +12,80 @@ interface ChatListProps {
   onOpenSettings: () => void;
   profileName: string;
   profileStatus: string;
+  currentUserId: string;
 }
-
-type FilterTab = 'all' | 'unread' | 'favorites';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
-export default function ChatList({ contacts, activeChatId, onSelect, onOpenSettings, profileName, profileStatus }: ChatListProps) {
+export default function ChatList({
+  contacts,
+  activeChatId,
+  onSelect,
+  onOpenSettings,
+  profileName,
+  profileStatus,
+  currentUserId,
+}: ChatListProps) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterTab>('all');
+  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [searching, setSearching] = useState(false);
 
-  const filtered = useMemo(() => {
-    return contacts.filter((c) => {
-      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.bio.toLowerCase().includes(search.toLowerCase());
-      if (!matchesSearch) return false;
-      if (filter === 'unread') return c.unread > 0;
-      if (filter === 'favorites') return c.isFavorite;
-      return true;
-    });
-  }, [contacts, search, filter]);
+  // Debounced Supabase search for users by username
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
 
-  const unreadTotal = contacts.reduce((sum, c) => sum + c.unread, 0);
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', `%${search.trim()}%`)
+        .neq('id', currentUserId)
+        .limit(20);
 
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'unread', label: 'Unread' },
-    { key: 'favorites', label: 'Starred' },
-  ];
+      if (error) {
+        console.error('Search error:', error.message);
+        setSearchResults([]);
+      } else {
+        setSearchResults((data as Profile[]) || []);
+      }
+      setSearching(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search, currentUserId]);
+
+  const isSearching = search.trim().length > 0;
+
+  const existingIds = useMemo(() => new Set(contacts.map((c) => c.id)), [contacts]);
+
+  const profileToContact = (p: Profile): Contact => {
+    const lastSeenMap: Record<string, string> = {
+      online: 'Active now',
+      away: 'Away',
+      offline: 'Offline',
+    };
+    return {
+      id: p.id,
+      name: p.username,
+      avatar: p.avatar_initials,
+      status: p.online_status as 'online' | 'offline' | 'away',
+      lastSeen: lastSeenMap[p.online_status] || 'Offline',
+      unread: 0,
+      isTyping: p.is_typing,
+      isFavorite: false,
+      bio: p.status_message,
+    };
+  };
+
+  const handleSelectSearchResult = (profile: Profile) => {
+    setSearch('');
+    onSelect(profile.id);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -47,25 +94,7 @@ export default function ChatList({ contacts, activeChatId, onSelect, onOpenSetti
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold text-white tracking-tight">Messages</h1>
-            {unreadTotal > 0 && (
-              <motion.span
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-                transition={spring}
-                className="px-2 py-0.5 rounded-full gradient-accent text-white text-xs font-semibold glow-accent"
-              >
-                {unreadTotal}
-              </motion.span>
-            )}
           </div>
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            transition={spring}
-            className="w-9 h-9 rounded-xl glass flex items-center justify-center text-zinc-400 hover:text-violet-400 transition-colors"
-          >
-            <SlidersHorizontal size={17} />
-          </motion.button>
         </div>
 
         {/* Search */}
@@ -74,50 +103,84 @@ export default function ChatList({ contacts, activeChatId, onSelect, onOpenSetti
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full glass-input rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 outline-none focus:border-violet-500/40 transition-colors"
+            placeholder="Search users by username..."
+            className="w-full glass-input rounded-xl py-2.5 pl-10 pr-10 text-sm text-white placeholder-zinc-500 outline-none focus:border-violet-500/40 transition-colors"
           />
-          <AnimatePresence>
-            {search && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={spring}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            {searching ? (
+              <Loader2 size={14} className="animate-spin text-zinc-500" />
+            ) : search ? (
+              <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                className="text-zinc-500 hover:text-white transition-colors text-xs"
               >
-                <span className="text-xs">Clear</span>
-              </motion.button>
-            )}
-          </AnimatePresence>
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-2 px-5 pb-3">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className="relative px-3.5 py-1.5 text-xs font-medium transition-colors"
-          >
-            <span className={filter === tab.key ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}>{tab.label}</span>
-            {filter === tab.key && (
-              <motion.div
-                layoutId="filter-pill"
-                transition={spring}
-                className="absolute inset-0 rounded-lg bg-violet-500/15 border border-violet-500/30 -z-10"
-              />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Chat items */}
+      {/* List area: search results or existing contacts */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 pb-3">
         <AnimatePresence mode="popLayout">
-          {filtered.length === 0 ? (
+          {isSearching ? (
+            // Search results
+            searchResults.length === 0 && !searching ? (
+              <motion.div
+                key="no-results"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={spring}
+                className="flex flex-col items-center justify-center py-16 text-zinc-600"
+              >
+                <Search size={32} className="mb-3 opacity-40" />
+                <p className="text-sm">No users found</p>
+              </motion.div>
+            ) : (
+              searchResults.map((profile) => {
+                const contact = profileToContact(profile);
+                const exists = existingIds.has(profile.id);
+                return (
+                  <motion.button
+                    key={profile.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={spring}
+                    onClick={() => handleSelectSearchResult(profile)}
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 group transition-colors relative"
+                  >
+                    {activeChatId === profile.id && (
+                      <motion.div
+                        layoutId="active-chat"
+                        transition={spring}
+                        className="absolute inset-0 rounded-xl glass-strong border border-violet-500/20"
+                      />
+                    )}
+                    <Avatar initials={contact.avatar} status={contact.status} showStatus size="md" />
+                    <div className="flex-1 min-w-0 text-left relative z-10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-white truncate">
+                          {contact.name}
+                        </span>
+                        {!exists && (
+                          <span className="text-[10px] text-violet-400 font-medium shrink-0 ml-2">
+                            New
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-zinc-500 truncate block mt-0.5">
+                        {contact.bio}
+                      </span>
+                    </div>
+                  </motion.button>
+                );
+              })
+            )
+          ) : contacts.length === 0 ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -127,10 +190,10 @@ export default function ChatList({ contacts, activeChatId, onSelect, onOpenSetti
               className="flex flex-col items-center justify-center py-16 text-zinc-600"
             >
               <Search size={32} className="mb-3 opacity-40" />
-              <p className="text-sm">No conversations found</p>
+              <p className="text-sm">Search to start a conversation</p>
             </motion.div>
           ) : (
-            filtered.map((contact) => (
+            contacts.map((contact) => (
               <motion.button
                 key={contact.id}
                 layout
