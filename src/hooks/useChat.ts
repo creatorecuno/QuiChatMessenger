@@ -22,6 +22,16 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   const typingReadyRef = useRef(false);
   const lastTypingSentRef = useRef(0);
 
+  const markPeerMessagesRead = useCallback(async () => {
+    if (!currentUserId || !peerId) return;
+    await supabase
+      .from('messages')
+      .update({ status: 'read' })
+      .eq('sender_id', peerId)
+      .eq('receiver_id', currentUserId)
+      .neq('status', 'read');
+  }, [currentUserId, peerId]);
+
   useEffect(() => {
     if (!currentUserId || !peerId) return;
     let active = true;
@@ -44,6 +54,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
         setMessages((data || []) as ChatMessage[]);
       }
       setLoading(false);
+      markPeerMessagesRead();
     };
 
     load();
@@ -60,6 +71,20 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
             (msg.sender_id === peerId && msg.receiver_id === currentUserId);
           if (belongsHere) {
             setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+            if (msg.sender_id === peerId) markPeerMessagesRead();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as ChatMessage;
+          const belongsHere =
+            (msg.sender_id === currentUserId && msg.receiver_id === peerId) ||
+            (msg.sender_id === peerId && msg.receiver_id === currentUserId);
+          if (belongsHere) {
+            setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
           }
         }
       )
@@ -94,7 +119,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       supabase.removeChannel(typingChannel);
       if (typingTimeout.current) clearTimeout(typingTimeout.current);
     };
-  }, [currentUserId, peerId]);
+  }, [currentUserId, peerId, markPeerMessagesRead]);
 
   const sendMessage = useCallback(
     async (content: string) => {
