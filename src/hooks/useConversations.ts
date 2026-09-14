@@ -24,10 +24,16 @@ export function useConversations(currentUserId: string | undefined) {
     }
 
     const lastByPeer = new Map<string, ChatMessage>();
+    const unreadByPeer = new Map<string, number>();
+
     (msgs || []).forEach((m) => {
       const row = m as ChatMessage;
+      if (row.sender_id === row.receiver_id) return;
       const peerId = row.sender_id === currentUserId ? row.receiver_id : row.sender_id;
       if (!lastByPeer.has(peerId)) lastByPeer.set(peerId, row);
+      if (row.receiver_id === currentUserId && row.status !== 'read') {
+        unreadByPeer.set(peerId, (unreadByPeer.get(peerId) || 0) + 1);
+      }
     });
 
     const peerIds = Array.from(lastByPeer.keys());
@@ -54,7 +60,11 @@ export function useConversations(currentUserId: string | undefined) {
       .map((peerId) => {
         const peer = profileById.get(peerId);
         if (!peer) return null;
-        return { peer, lastMessage: lastByPeer.get(peerId) || null, unreadCount: 0 };
+        return {
+          peer,
+          lastMessage: lastByPeer.get(peerId) || null,
+          unreadCount: unreadByPeer.get(peerId) || 0,
+        };
       })
       .filter((c): c is ConversationPreview => c !== null)
       .sort((a, b) => {
@@ -79,6 +89,16 @@ export function useConversations(currentUserId: string | undefined) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as ChatMessage;
+          if (msg.sender_id === currentUserId || msg.receiver_id === currentUserId) {
+            loadConversations();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
           const msg = payload.new as ChatMessage;
           if (msg.sender_id === currentUserId || msg.receiver_id === currentUserId) {
