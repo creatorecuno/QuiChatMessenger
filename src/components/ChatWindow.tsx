@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -45,6 +45,7 @@ function formatRecDuration(seconds: number) {
 }
 
 export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
+  const isSelf = peer.id === currentUser.id;
   const {
     messages,
     peerTyping,
@@ -63,6 +64,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +72,14 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, peerTyping]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxUrl(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleSend = useCallback(() => {
     if (!input.trim()) return;
@@ -143,7 +153,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   let lastDate: string | null = null;
   let lastSenderId: string | null = null;
 
-  const displayName = peer.username || peer.email;
+  const displayName = isSelf ? 'Избранное' : peer.username || peer.email;
 
   const headerActions = [
     { icon: Search, label: 'Search', onClick: () => setShowSearch((v) => !v), enabled: true },
@@ -170,11 +180,19 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
           <ArrowLeft size={18} />
         </motion.button>
 
-        <Avatar name={displayName} avatarUrl={peer.avatar_url} status={isPeerOnline ? 'online' : 'offline'} showStatus size="md" />
+        {isSelf ? (
+          <div className="w-11 h-11 rounded-full gradient-accent flex items-center justify-center shrink-0 glow-accent">
+            <Bookmark size={18} className="text-white" fill="currentColor" />
+          </div>
+        ) : (
+          <Avatar name={displayName} avatarUrl={peer.avatar_url} status={isPeerOnline ? 'online' : 'offline'} showStatus size="md" />
+        )}
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-bold text-white truncate">{displayName}</h2>
           <p className="text-xs text-zinc-500 truncate">
-            {peerTyping ? (
+            {isSelf ? (
+              'Заметки, которые видны только вам'
+            ) : peerTyping ? (
               <span className="text-violet-400">печатает...</span>
             ) : isPeerOnline ? (
               <span className="text-green-400 flex items-center gap-1">
@@ -251,7 +269,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
         <div className="max-w-3xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center text-zinc-500 text-sm pt-24 text-center px-8">
-              Напишите первое сообщение, чтобы начать переписку с {displayName}
+              {isSelf ? 'Сохраняйте сюда заметки, ссылки и файлы' : `Напишите первое сообщение, чтобы начать переписку с ${displayName}`}
             </div>
           )}
           <AnimatePresence mode="popLayout">
@@ -273,13 +291,14 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
                     avatarUrl={peer.avatar_url}
                     timeLabel={formatTime(msg.created_at)}
                     onContextMenu={handleContextMenu}
+                    onImageClick={setLightboxUrl}
                     isReplyTarget={replyTo?.id === msg.id}
                   />
                 </div>
               );
             })}
           </AnimatePresence>
-          {peerTyping && <TypingBubble avatarName={displayName} avatarUrl={peer.avatar_url} />}
+          {peerTyping && !isSelf && <TypingBubble avatarName={displayName} avatarUrl={peer.avatar_url} />}
           <div ref={endRef} className="h-1" />
         </div>
       </div>
@@ -403,7 +422,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
                   value={input}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKey}
-                  placeholder="Напишите сообщение..."
+                  placeholder={isSelf ? 'Заметка себе...' : 'Напишите сообщение...'}
                   className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
                 />
                 <motion.button
@@ -463,6 +482,36 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
           onDelete={deleteMessage}
         />
       )}
+
+      <AnimatePresence>
+        {lightboxUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxUrl(null)}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <motion.img
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={spring}
+              src={lightboxUrl}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full rounded-2xl object-contain"
+            />
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-4 right-4 w-10 h-10 rounded-xl glass-strong flex items-center justify-center text-white"
+            >
+              <X size={20} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
