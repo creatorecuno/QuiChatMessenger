@@ -39,19 +39,15 @@ function formatDuration(seconds: number | null) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function isUrl(str: string) {
+  return /^https?:\/\//.test(str);
+}
+
 function linkify(text: string) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   return parts.map((part, i) =>
-    /^https?:\/\//.test(part) ? (
-      
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline underline-offset-2 hover:opacity-80"
-      >
-        {part}
-      </a>
+    isUrl(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:opacity-80">{part}</a>
     ) : (
       <span key={i}>{part}</span>
     )
