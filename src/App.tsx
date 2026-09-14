@@ -25,6 +25,12 @@ export function App() {
     setBrowseAll(false);
   };
 
+  const openSavedMessages = () => {
+    if (!profile) return;
+    setActiveUser(profile);
+    setBrowseAll(false);
+  };
+
   if (loading) {
     return (
       <div className="h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -67,6 +73,8 @@ export function App() {
           activeUserId={activeUser?.id}
           browseAll={browseAll}
           onSelectUser={handleSelectUser}
+          onOpenSaved={openSavedMessages}
+          isSavedActive={activeUser?.id === profile.id}
         />
       </div>
 
