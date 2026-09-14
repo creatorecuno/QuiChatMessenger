@@ -11,6 +11,7 @@ interface MessageBubbleProps {
   avatarUrl?: string | null;
   timeLabel: string;
   onContextMenu: (e: React.MouseEvent, messageId: string) => void;
+  onImageClick: (url: string) => void;
   isReplyTarget?: boolean;
 }
 
@@ -36,6 +37,25 @@ function formatDuration(seconds: number | null) {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function linkify(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 hover:opacity-80"
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
 }
 
 function VoicePlayer({ url, duration, isMine }: { url: string; duration: number | null; isMine: boolean }) {
@@ -102,17 +122,17 @@ export default function MessageBubble({
   avatarUrl,
   timeLabel,
   onContextMenu,
+  onImageClick,
   isReplyTarget,
 }: MessageBubbleProps) {
   const renderContent = () => {
     if (message.message_type === 'image' && message.file_url) {
       return (
-        <motion.a
-          href={message.file_url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <motion.button
+          type="button"
           whileHover={{ scale: 1.02 }}
           transition={spring}
+          onClick={() => onImageClick(message.file_url as string)}
           onContextMenu={(e) => onContextMenu(e, message.id)}
           className="block rounded-2xl overflow-hidden cursor-pointer max-w-[280px]"
         >
@@ -121,7 +141,7 @@ export default function MessageBubble({
             alt={message.file_name || 'Изображение'}
             className="w-full h-auto max-h-[320px] object-cover"
           />
-        </motion.a>
+        </motion.button>
       );
     }
 
@@ -170,7 +190,7 @@ export default function MessageBubble({
             : 'glass text-zinc-200 rounded-2xl rounded-bl-md'
         }`}
       >
-        {message.content}
+        {linkify(message.content)}
       </motion.div>
     );
   };
@@ -207,8 +227,6 @@ export default function MessageBubble({
             <>
               {message.status === 'read' ? (
                 <CheckCheck size={12} className="text-violet-400" />
-              ) : message.status === 'delivered' ? (
-                <CheckCheck size={12} className="text-zinc-600" />
               ) : (
                 <Check size={12} className="text-zinc-600" />
               )}
