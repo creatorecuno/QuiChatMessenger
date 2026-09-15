@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
-import { Check, CheckCheck, Play, Pause, FileText, Download } from 'lucide-react';
+import { Check, CheckCheck, Play, Pause, FileText, Download, Pin } from 'lucide-react';
 import { useRef, useState } from 'react';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, ReactionSummary } from '../types';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -10,8 +10,10 @@ interface MessageBubbleProps {
   avatarName: string;
   avatarUrl?: string | null;
   timeLabel: string;
+  reactions: ReactionSummary[];
   onContextMenu: (e: React.MouseEvent, messageId: string) => void;
   onImageClick: (url: string) => void;
+  onToggleReaction: (emoji: string) => void;
   isReplyTarget?: boolean;
 }
 
@@ -117,8 +119,10 @@ export default function MessageBubble({
   avatarName,
   avatarUrl,
   timeLabel,
+  reactions,
   onContextMenu,
   onImageClick,
+  onToggleReaction,
   isReplyTarget,
 }: MessageBubbleProps) {
   const renderContent = () => {
@@ -215,7 +219,34 @@ export default function MessageBubble({
       )}
 
       <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+        <div className="flex items-center gap-1.5">
+          {message.pinned && <Pin size={11} className="text-violet-400 shrink-0" fill="currentColor" />}
+        </div>
         {renderContent()}
+
+        {reactions.length > 0 && (
+          <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+            {reactions.map((r) => (
+              <motion.button
+                key={r.emoji}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                transition={spring}
+                onClick={() => onToggleReaction(r.emoji)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                  r.reactedByMe
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                    : 'glass border-white/5 text-zinc-400 hover:border-white/20'
+                }`}
+              >
+                <span>{r.emoji}</span>
+                <span>{r.count}</span>
+              </motion.button>
+            ))}
+          </div>
+        )}
 
         <div className={`flex items-center gap-1 mt-1 px-1 ${isMine ? 'flex-row-reverse' : ''}`}>
           <span className="text-[10px] text-zinc-600">{timeLabel}</span>
