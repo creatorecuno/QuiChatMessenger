@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Copy, Trash2, X } from 'lucide-react';
+import { Reply, Copy, Trash2, Pin, PinOff } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 interface ContextMenuProps {
@@ -7,15 +7,32 @@ interface ContextMenuProps {
   y: number;
   messageId: string;
   isMine: boolean;
+  isPinned: boolean;
   onClose: () => void;
   onReply: (messageId: string) => void;
   onCopy: (messageId: string) => void;
   onDelete: (messageId: string) => void;
+  onPin: (messageId: string) => void;
+  onReact: (messageId: string, emoji: string) => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 26 };
 
-export default function ContextMenu({ x, y, messageId, isMine, onClose, onReply, onCopy, onDelete }: ContextMenuProps) {
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+export default function ContextMenu({
+  x,
+  y,
+  messageId,
+  isMine,
+  isPinned,
+  onClose,
+  onReply,
+  onCopy,
+  onDelete,
+  onPin,
+  onReact,
+}: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,15 +50,17 @@ export default function ContextMenu({ x, y, messageId, isMine, onClose, onReply,
     };
   }, [onClose]);
 
-  // Clamp position to viewport
-  const clampedX = Math.min(x, window.innerWidth - 180);
-  const clampedY = Math.min(y, window.innerHeight - 220);
+  const clampedX = Math.min(x, window.innerWidth - 220);
+  const clampedY = Math.min(y, window.innerHeight - 300);
 
   const actions = [
-    { icon: Reply, label: 'Reply', color: 'text-violet-400', action: () => onReply(messageId) },
-    { icon: Copy, label: 'Copy', color: 'text-zinc-300', action: () => onCopy(messageId) },
+    { icon: Reply, label: 'Ответить', color: 'text-violet-400', action: () => onReply(messageId) },
+    { icon: Copy, label: 'Копировать', color: 'text-zinc-300', action: () => onCopy(messageId) },
+    isPinned
+      ? { icon: PinOff, label: 'Открепить', color: 'text-zinc-300', action: () => onPin(messageId) }
+      : { icon: Pin, label: 'Закрепить', color: 'text-zinc-300', action: () => onPin(messageId) },
     ...(isMine
-      ? [{ icon: Trash2, label: 'Delete', color: 'text-rose-400', action: () => onDelete(messageId) }]
+      ? [{ icon: Trash2, label: 'Удалить', color: 'text-rose-400', action: () => onDelete(messageId) }]
       : []),
   ];
 
@@ -56,8 +75,26 @@ export default function ContextMenu({ x, y, messageId, isMine, onClose, onReply,
           exit={{ opacity: 0, scale: 0.85, y: -8 }}
           transition={spring}
           style={{ left: clampedX, top: clampedY }}
-          className="fixed z-50 glass-strong rounded-xl p-1.5 shadow-2xl min-w-[160px] origin-top-left"
+          className="fixed z-50 glass-strong rounded-xl p-1.5 shadow-2xl min-w-[200px] origin-top-left"
         >
+          <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 mb-1 border-b border-white/5">
+            {QUICK_EMOJIS.map((emoji) => (
+              <motion.button
+                key={emoji}
+                whileHover={{ scale: 1.25 }}
+                whileTap={{ scale: 0.9 }}
+                transition={spring}
+                onClick={() => {
+                  onReact(messageId, emoji);
+                  onClose();
+                }}
+                className="text-lg leading-none w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5"
+              >
+                {emoji}
+              </motion.button>
+            ))}
+          </div>
+
           {actions.map((item) => {
             const Icon = item.icon;
             return (
