@@ -23,6 +23,13 @@ export interface ChatMessage {
   file_name: string | null;
   file_size: number | null;
   duration_seconds: number | null;
+  pinned: boolean;
+}
+
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
 }
 
 export interface ConversationPreview {
