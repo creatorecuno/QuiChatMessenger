@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark, Pin, PinOff } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -44,6 +44,14 @@ function formatRecDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function pinnedPreview(msg: ChatMessage) {
+  if (msg.content) return msg.content;
+  if (msg.message_type === 'image') return '📷 Фото';
+  if (msg.message_type === 'voice') return '🎤 Голосовое сообщение';
+  if (msg.message_type === 'file') return `📎 ${msg.file_name || 'Файл'}`;
+  return '';
+}
+
 export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
   const isSelf = peer.id === currentUser.id;
   const {
@@ -52,6 +60,9 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
     sendMessage,
     sendMediaMessage,
     deleteMessage,
+    togglePin,
+    toggleReaction,
+    reactionsByMessage,
     notifyTyping,
     sendError,
     uploading,
@@ -146,9 +157,16 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
     }
   };
 
+  const scrollToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const filteredMessages = searchQuery
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : messages;
+
+  const pinnedMessage = messages.find((m) => m.pinned) || null;
 
   let lastDate: string | null = null;
   let lastSenderId: string | null = null;
@@ -230,6 +248,37 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
       </motion.div>
 
       <AnimatePresence>
+        {pinnedMessage && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={spring}
+            onClick={() => scrollToMessage(pinnedMessage.id)}
+            className="overflow-hidden px-4 py-2 border-b border-white/5 glass flex items-center gap-2 cursor-pointer"
+          >
+            <Pin size={14} className="text-violet-400 shrink-0" fill="currentColor" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-violet-400 font-medium">Закреплено</p>
+              <p className="text-xs text-zinc-400 truncate">{pinnedPreview(pinnedMessage)}</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePin(pinnedMessage.id);
+              }}
+              className="flex items-center gap-1 text-zinc-500 hover:text-white text-xs shrink-0 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              <PinOff size={12} />
+              Открепить
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showSearch && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -281,7 +330,12 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
               lastDate = dateLabel;
               lastSenderId = msg.sender_id;
               return (
-                <div key={msg.id} onTouchStart={(e) => handleTouchStart(e, msg.id)} onTouchEnd={handleTouchEnd}>
+                <div
+                  key={msg.id}
+                  id={`msg-${msg.id}`}
+                  onTouchStart={(e) => handleTouchStart(e, msg.id)}
+                  onTouchEnd={handleTouchEnd}
+                >
                   {showDate && <DateSeparator label={dateLabel} />}
                   <MessageBubble
                     message={msg}
@@ -290,8 +344,10 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
                     avatarName={displayName}
                     avatarUrl={peer.avatar_url}
                     timeLabel={formatTime(msg.created_at)}
+                    reactions={reactionsByMessage[msg.id] || []}
                     onContextMenu={handleContextMenu}
                     onImageClick={setLightboxUrl}
+                    onToggleReaction={(emoji) => toggleReaction(msg.id, emoji)}
                     isReplyTarget={replyTo?.id === msg.id}
                   />
                 </div>
@@ -476,10 +532,13 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
           y={contextMenu.y}
           messageId={contextMenu.messageId}
           isMine={messages.find((m) => m.id === contextMenu.messageId)?.sender_id === currentUser.id}
+          isPinned={messages.find((m) => m.id === contextMenu.messageId)?.pinned || false}
           onClose={() => setContextMenu(null)}
           onReply={handleReply}
           onCopy={handleCopy}
           onDelete={deleteMessage}
+          onPin={togglePin}
+          onReact={toggleReaction}
         />
       )}
 
