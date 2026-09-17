@@ -7,6 +7,7 @@ interface AuthModalProps {
   onClose: () => void;
   onSignIn: (email: string, password: string) => Promise<void>;
   onSignUp: (email: string, password: string, username: string) => Promise<void>;
+  onOpenPrivacy: () => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 28 };
@@ -31,7 +32,7 @@ function translateAuthError(message: string): string {
   return message;
 }
 
-export default function AuthModal({ open, onClose, onSignIn, onSignUp }: AuthModalProps) {
+export default function AuthModal({ open, onClose, onSignIn, onSignUp, onOpenPrivacy }: AuthModalProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -201,6 +202,16 @@ export default function AuthModal({ open, onClose, onSignIn, onSignUp }: AuthMod
                     <span className="text-violet-400 font-medium">
                       {mode === 'login' ? 'Зарегистрироваться' : 'Войти'}
                     </span>
+                  </button>
+                </div>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={onOpenPrivacy}
+                    className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors underline underline-offset-2"
+                  >
+                    Политика конфиденциальности
                   </button>
                 </div>
               </form>
