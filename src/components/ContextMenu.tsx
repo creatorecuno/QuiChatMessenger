@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Reply, Copy, Trash2, Pin, PinOff } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface ContextMenuProps {
   x: number;
@@ -34,6 +34,7 @@ export default function ContextMenu({
   onReact,
 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -51,7 +52,7 @@ export default function ContextMenu({
   }, [onClose]);
 
   const clampedX = Math.min(x, window.innerWidth - 220);
-  const clampedY = Math.min(y, window.innerHeight - 300);
+  const clampedY = Math.min(y, window.innerHeight - 320);
 
   const actions = [
     { icon: Reply, label: 'Ответить', color: 'text-violet-400', action: () => onReply(messageId) },
@@ -59,9 +60,6 @@ export default function ContextMenu({
     isPinned
       ? { icon: PinOff, label: 'Открепить', color: 'text-zinc-300', action: () => onPin(messageId) }
       : { icon: Pin, label: 'Закрепить', color: 'text-zinc-300', action: () => onPin(messageId) },
-    ...(isMine
-      ? [{ icon: Trash2, label: 'Удалить', color: 'text-rose-400', action: () => onDelete(messageId) }]
-      : []),
   ];
 
   return (
@@ -114,6 +112,34 @@ export default function ContextMenu({
               </motion.button>
             );
           })}
+
+          {isMine &&
+            (confirmDelete ? (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                transition={spring}
+                onClick={() => {
+                  onDelete(messageId);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-rose-500/15 hover:bg-rose-500/25 transition-colors"
+              >
+                <Trash2 size={15} className="text-rose-400" />
+                <span className="text-rose-300 font-medium">Точно удалить?</span>
+              </motion.button>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.02, x: 2 }}
+                whileTap={{ scale: 0.96 }}
+                transition={spring}
+                onClick={() => setConfirmDelete(true)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition-colors"
+              >
+                <Trash2 size={15} className="text-rose-400" />
+                <span className="text-zinc-200">Удалить</span>
+              </motion.button>
+            ))}
         </motion.div>
       </AnimatePresence>
     </>
