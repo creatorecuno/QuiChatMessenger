@@ -9,6 +9,7 @@ import ChatWindow from './components/ChatWindow';
 import EmptyState from './components/EmptyState';
 import InstallPrompt from './components/InstallPrompt';
 import ProfileModal from './components/ProfileModal';
+import PrivacyPolicyModal from './components/PrivacyPolicyModal';
 import type { Profile } from './types';
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
   const [activeUser, setActiveUser] = useState<Profile | null>(null);
   const [browseAll, setBrowseAll] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const handleSelectUser = (u: Profile) => {
     setActiveUser(u);
@@ -44,7 +46,14 @@ export function App() {
       <div className="h-screen bg-[#0a0a0f] relative overflow-hidden">
         <div className="ambient-glow bg-violet-600 w-[500px] h-[500px] -top-40 -left-40" />
         <div className="ambient-glow bg-indigo-600 w-[500px] h-[500px] -bottom-40 -right-40" />
-        <AuthModal open onClose={() => {}} onSignIn={signIn} onSignUp={signUp} />
+        <AuthModal
+          open
+          onClose={() => {}}
+          onSignIn={signIn}
+          onSignUp={signUp}
+          onOpenPrivacy={() => setPrivacyOpen(true)}
+        />
+        <PrivacyPolicyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
       </div>
     );
   }
@@ -97,6 +106,7 @@ export function App() {
         onClose={() => setProfileOpen(false)}
         onSave={updateProfile}
       />
+      <PrivacyPolicyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </div>
   );
 }
