@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { usePresence } from './hooks/usePresence';
 import { useConversations } from './hooks/useConversations';
@@ -12,14 +12,23 @@ import ProfileModal from './components/ProfileModal';
 import PrivacyPolicyModal from './components/PrivacyPolicyModal';
 import type { Profile } from './types';
 
+const NOTIFICATIONS_KEY = 'quichat_notifications_enabled';
+
 export function App() {
   const { session, user, profile, loading, signIn, signUp, signOut, updateProfile } = useAuth();
   const onlineIds = usePresence(user?.id);
-  const { conversations, loading: conversationsLoading, upsertPeer } = useConversations(user?.id);
+  const { conversations, loading: conversationsLoading, upsertPeer, totalUnread } = useConversations(user?.id);
   const [activeUser, setActiveUser] = useState<Profile | null>(null);
   const [browseAll, setBrowseAll] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem(NOTIFICATIONS_KEY) === 'true'
+  );
+
+  useEffect(() => {
+    document.title = totalUnread > 0 ? `(${totalUnread}) QuiChat` : 'QuiChat';
+  }, [totalUnread]);
 
   const handleSelectUser = (u: Profile) => {
     setActiveUser(u);
@@ -31,6 +40,26 @@ export function App() {
     if (!profile) return;
     setActiveUser(profile);
     setBrowseAll(false);
+  };
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      localStorage.setItem(NOTIFICATIONS_KEY, 'false');
+      setNotificationsEnabled(false);
+      return;
+    }
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted') {
+      localStorage.setItem(NOTIFICATIONS_KEY, 'true');
+      setNotificationsEnabled(true);
+      return;
+    }
+    if (Notification.permission === 'denied') return;
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      localStorage.setItem(NOTIFICATIONS_KEY, 'true');
+      setNotificationsEnabled(true);
+    }
   };
 
   if (loading) {
@@ -71,6 +100,8 @@ export function App() {
         onToggleBrowseAll={() => setBrowseAll((v) => !v)}
         onOpenProfile={() => setProfileOpen(true)}
         onSignOut={signOut}
+        notificationsEnabled={notificationsEnabled}
+        onToggleNotifications={handleToggleNotifications}
       />
 
       <div className={`${activeUser ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full relative`}>
