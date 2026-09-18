@@ -19,11 +19,12 @@ export interface ChatMessage {
   status: 'sent' | 'delivered' | 'read';
   created_at: string;
   message_type: MessageType;
-  file_url: string | null;
+  file_path: string | null;
   file_name: string | null;
   file_size: number | null;
   duration_seconds: number | null;
   pinned: boolean;
+  edited: boolean;
 }
 
 export interface ReactionSummary {
