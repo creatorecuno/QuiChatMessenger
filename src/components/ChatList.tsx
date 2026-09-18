@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, X, Bookmark } from 'lucide-react';
+import { Search, X, Bookmark, Users, Bell, BellOff, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Avatar from './Avatar';
 import type { ConversationPreview, Profile } from '../types';
 
 interface ChatListProps {
-  currentUserId: string;
+  currentUser: Profile;
   conversations: ConversationPreview[];
   conversationsLoading: boolean;
   onlineIds: Set<string>;
   activeUserId?: string;
   browseAll: boolean;
+  onToggleBrowseAll: () => void;
   onSelectUser: (user: Profile) => void;
   onOpenSaved: () => void;
   isSavedActive: boolean;
+  onOpenProfile: () => void;
+  onSignOut: () => void;
+  notificationsEnabled: boolean;
+  onToggleNotifications: () => void;
 }
 
 function formatPreviewTime(iso: string) {
@@ -34,15 +39,20 @@ function mediaLabel(type: string) {
 }
 
 export default function ChatList({
-  currentUserId,
+  currentUser,
   conversations,
   conversationsLoading,
   onlineIds,
   activeUserId,
   browseAll,
+  onToggleBrowseAll,
   onSelectUser,
   onOpenSaved,
   isSavedActive,
+  onOpenProfile,
+  onSignOut,
+  notificationsEnabled,
+  onToggleNotifications,
 }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
@@ -58,7 +68,7 @@ export default function ChatList({
     setSearching(true);
     const timer = setTimeout(
       async () => {
-        let request = supabase.from('profiles').select('*').neq('id', currentUserId).limit(50);
+        let request = supabase.from('profiles').select('*').neq('id', currentUser.id).limit(50);
         request = query
           ? request.or(`username.ilike.%${query}%,email.ilike.%${query}%`)
           : request.order('username', { ascending: true });
@@ -76,7 +86,7 @@ export default function ChatList({
     );
 
     return () => clearTimeout(timer);
-  }, [searchQuery, currentUserId, browseAll]);
+  }, [searchQuery, currentUser.id, browseAll]);
 
   const isBrowseMode = searchQuery.trim().length > 0 || browseAll;
   const knownPeerIds = new Set(conversations.map((c) => c.peer.id));
@@ -84,9 +94,59 @@ export default function ChatList({
   return (
     <div className="w-full md:w-80 h-full glass border-r border-white/5 flex flex-col shrink-0">
       <div className="p-4 border-b border-white/5">
-        <h1 className="text-xl font-bold text-white mb-4 tracking-tight">
-          {browseAll && !searchQuery ? 'Все пользователи' : 'Сообщения'}
-        </h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold text-white tracking-tight">
+            {browseAll && !searchQuery ? 'Все пользователи' : 'Сообщения'}
+          </h1>
+
+          <div className="flex md:hidden items-center gap-1">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onClick={onToggleBrowseAll}
+              title="Все пользователи"
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                browseAll ? 'text-violet-400 bg-violet-500/15' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Users size={16} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onClick={onToggleNotifications}
+              title={notificationsEnabled ? 'Уведомления включены' : 'Включить уведомления'}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                notificationsEnabled ? 'text-violet-400 bg-violet-500/15' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onClick={onSignOut}
+              title="Выйти"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-rose-400 transition-colors"
+            >
+              <LogOut size={16} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onClick={onOpenProfile}
+              title="Профиль"
+              className="ml-1"
+            >
+              <Avatar name={currentUser.username || currentUser.email} avatarUrl={currentUser.avatar_url} size="sm" />
+            </motion.button>
+          </div>
+        </div>
+
         <div className="relative">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
