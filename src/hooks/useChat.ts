@@ -9,6 +9,8 @@ interface RawReaction {
   emoji: string;
 }
 
+const PAGE_SIZE = 40;
+
 function pairChannelName(a: string, b: string) {
   return ['typing', ...[a, b].sort()].join(':');
 }
@@ -21,6 +23,8 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [rawReactions, setRawReactions] = useState<RawReaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -30,6 +34,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   const typingReadyRef = useRef(false);
   const lastTypingSentRef = useRef(0);
   const messageIdsRef = useRef<Set<string>>(new Set());
+  const oldestLoadedRef = useRef<string | null>(null);
 
   useEffect(() => {
     messageIdsRef.current = new Set(messages.map((m) => m.id));
@@ -45,21 +50,38 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       .neq('status', 'read');
   }, [currentUserId, peerId]);
 
+  const fetchReactionsFor = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const { data, error } = await supabase.from('message_reactions').select('*').in('message_id', ids);
+    if (error) {
+      console.error('Error loading reactions:', error.message);
+      return;
+    }
+    setRawReactions((prev) => {
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = ((data || []) as RawReaction[]).filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, []);
+
   useEffect(() => {
     if (!currentUserId || !peerId) return;
     let active = true;
     setLoading(true);
     setMessages([]);
     setRawReactions([]);
+    setHasMore(false);
+    oldestLoadedRef.current = null;
+
+    const orCondition = `and(sender_id.eq.${currentUserId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${currentUserId})`;
 
     const load = async () => {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${currentUserId})`
-        )
-        .order('created_at', { ascending: true });
+        .or(orCondition)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
 
       if (!active) return;
       if (error) {
@@ -68,24 +90,13 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
         return;
       }
 
-      const rows = (data || []) as ChatMessage[];
+      const rows = ((data || []) as ChatMessage[]).slice().reverse();
       setMessages(rows);
+      setHasMore((data || []).length === PAGE_SIZE);
+      oldestLoadedRef.current = rows[0]?.created_at ?? null;
       setLoading(false);
       markPeerMessagesRead();
-
-      const ids = rows.map((m) => m.id);
-      if (ids.length > 0) {
-        const { data: reactionRows, error: reactionError } = await supabase
-          .from('message_reactions')
-          .select('*')
-          .in('message_id', ids);
-        if (!active) return;
-        if (reactionError) {
-          console.error('Error loading reactions:', reactionError.message);
-        } else {
-          setRawReactions((reactionRows || []) as RawReaction[]);
-        }
-      }
+      await fetchReactionsFor(rows.map((m) => m.id));
     };
 
     load();
@@ -173,7 +184,36 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       supabase.removeChannel(typingChannel);
       if (typingTimeout.current) clearTimeout(typingTimeout.current);
     };
-  }, [currentUserId, peerId, markPeerMessagesRead]);
+  }, [currentUserId, peerId, markPeerMessagesRead, fetchReactionsFor]);
+
+  const loadMore = useCallback(async () => {
+    if (!currentUserId || !peerId || !oldestLoadedRef.current || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${currentUserId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${currentUserId})`
+      )
+      .lt('created_at', oldestLoadedRef.current)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (error) {
+      console.error('Error loading more messages:', error.message);
+      setLoadingMore(false);
+      return;
+    }
+
+    const rows = ((data || []) as ChatMessage[]).slice().reverse();
+    if (rows.length > 0) {
+      oldestLoadedRef.current = rows[0].created_at;
+      setMessages((prev) => [...rows, ...prev]);
+      await fetchReactionsFor(rows.map((m) => m.id));
+    }
+    setHasMore((data || []).length === PAGE_SIZE);
+    setLoadingMore(false);
+  }, [currentUserId, peerId, loadingMore, hasMore, fetchReactionsFor]);
 
   const reactionsByMessage = useMemo(() => {
     const map: Record<string, ReactionSummary[]> = {};
@@ -209,6 +249,15 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
     [currentUserId, peerId]
   );
 
+  const editMessage = useCallback(async (messageId: string, content: string) => {
+    if (!content.trim()) return;
+    const { error } = await supabase
+      .from('messages')
+      .update({ content: content.trim(), edited: true })
+      .eq('id', messageId);
+    if (error) console.error('Error editing message:', error.message);
+  }, []);
+
   const sendMediaMessage = useCallback(
     async (file: Blob, type: MessageType, fileName: string, durationSeconds?: number) => {
       if (!currentUserId || !peerId) return;
@@ -221,15 +270,13 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
           .upload(path, file, { contentType: file.type || undefined, upsert: false });
         if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = supabase.storage.from('chat-media').getPublicUrl(path);
-
         const { error: insertError } = await supabase.from('messages').insert({
           sender_id: currentUserId,
           receiver_id: peerId,
           content: '',
           status: 'sent',
           message_type: type,
-          file_url: publicUrlData.publicUrl,
+          file_path: path,
           file_name: fileName,
           file_size: file.size,
           duration_seconds: durationSeconds ?? null,
@@ -319,9 +366,13 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   return {
     messages,
     loading,
+    hasMore,
+    loadingMore,
+    loadMore,
     peerTyping,
     sendMessage,
     sendMediaMessage,
+    editMessage,
     deleteMessage,
     togglePin,
     toggleReaction,
