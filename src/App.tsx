@@ -64,7 +64,7 @@ export function App() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="h-screen bg-[#0a0a0f] flex items-center justify-center" style={{ height: '100dvh' }}>
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-violet-500" />
       </div>
     );
@@ -72,7 +72,7 @@ export function App() {
 
   if (!session || !user || !profile) {
     return (
-      <div className="h-screen bg-[#0a0a0f] relative overflow-hidden">
+      <div className="h-screen bg-[#0a0a0f] relative overflow-hidden" style={{ height: '100dvh' }}>
         <div className="ambient-glow bg-violet-600 w-[500px] h-[500px] -top-40 -left-40" />
         <div className="ambient-glow bg-indigo-600 w-[500px] h-[500px] -bottom-40 -right-40" />
         <AuthModal
@@ -88,7 +88,7 @@ export function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#0a0a0f] text-white overflow-hidden relative">
+    <div className="flex h-screen w-screen bg-[#0a0a0f] text-white overflow-hidden relative" style={{ height: '100dvh' }}>
       <div className="ambient-glow bg-violet-600 w-[500px] h-[500px] -top-40 -left-40" />
       <div className="ambient-glow bg-indigo-600 w-[500px] h-[500px] -bottom-40 -right-40" />
 
