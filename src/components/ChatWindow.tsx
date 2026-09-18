@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark, Pin, PinOff } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark, Pin, PinOff, Pencil } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -56,9 +56,13 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   const isSelf = peer.id === currentUser.id;
   const {
     messages,
+    hasMore,
+    loadingMore,
+    loadMore,
     peerTyping,
     sendMessage,
     sendMediaMessage,
+    editMessage,
     deleteMessage,
     togglePin,
     toggleReaction,
@@ -75,14 +79,17 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const lastMessageId = messages[messages.length - 1]?.id;
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, peerTyping]);
+  }, [lastMessageId, peerTyping]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -94,11 +101,17 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
 
   const handleSend = useCallback(() => {
     if (!input.trim()) return;
+    if (editingMessage) {
+      editMessage(editingMessage.id, input);
+      setEditingMessage(null);
+      setInput('');
+      return;
+    }
     const content = replyTo ? `> ${replyTo.content}\n${input.trim()}` : input.trim();
     sendMessage(content);
     setInput('');
     setReplyTo(null);
-  }, [input, replyTo, sendMessage]);
+  }, [input, replyTo, editingMessage, sendMessage, editMessage]);
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -124,7 +137,24 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
 
   const handleReply = (messageId: string) => {
     const msg = messages.find((m) => m.id === messageId);
-    if (msg) setReplyTo(msg);
+    if (msg) {
+      setEditingMessage(null);
+      setReplyTo(msg);
+    }
+  };
+
+  const handleEdit = (messageId: string) => {
+    const msg = messages.find((m) => m.id === messageId);
+    if (msg) {
+      setReplyTo(null);
+      setEditingMessage(msg);
+      setInput(msg.content);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingMessage(null);
+    setInput('');
   };
 
   const handleTouchStart = (e: React.TouchEvent, messageId: string) => {
@@ -167,6 +197,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
     : messages;
 
   const pinnedMessage = messages.find((m) => m.pinned) || null;
+  const contextMsg = contextMenu ? messages.find((m) => m.id === contextMenu.messageId) : undefined;
 
   let lastDate: string | null = null;
   let lastSenderId: string | null = null;
@@ -316,6 +347,20 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
 
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
         <div className="max-w-3xl mx-auto">
+          {hasMore && !searchQuery && (
+            <div className="flex justify-center py-2">
+              <motion.button
+                whileHover={{ scale: loadingMore ? 1 : 1.03 }}
+                whileTap={{ scale: loadingMore ? 1 : 0.97 }}
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-4 py-1.5 rounded-full glass text-xs text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+              >
+                {loadingMore ? 'Загружаем...' : 'Показать более раннюю историю'}
+              </motion.button>
+            </div>
+          )}
+
           {messages.length === 0 && (
             <div className="flex items-center justify-center text-zinc-500 text-sm pt-24 text-center px-8">
               {isSelf ? 'Сохраняйте сюда заметки, ссылки и файлы' : `Напишите первое сообщение, чтобы начать переписку с ${displayName}`}
@@ -360,7 +405,33 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
       </div>
 
       <AnimatePresence>
-        {replyTo && (
+        {editingMessage && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={spring}
+            className="overflow-hidden px-4 py-2 border-t border-white/5 glass"
+          >
+            <div className="flex items-start gap-2 max-w-3xl mx-auto">
+              <Pencil size={14} className="text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 py-1">
+                <p className="text-xs text-amber-400 font-medium">Редактирование сообщения</p>
+                <p className="text-xs text-zinc-500 truncate mt-0.5">{editingMessage.content}</p>
+              </div>
+              <button
+                onClick={cancelEdit}
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white transition-colors shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {replyTo && !editingMessage && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -478,7 +549,9 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
                   value={input}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKey}
-                  placeholder={isSelf ? 'Заметка себе...' : 'Напишите сообщение...'}
+                  placeholder={
+                    editingMessage ? 'Изменить сообщение...' : isSelf ? 'Заметка себе...' : 'Напишите сообщение...'
+                  }
                   className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
                 />
                 <motion.button
@@ -526,19 +599,21 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
         </AnimatePresence>
       </motion.div>
 
-      {contextMenu && (
+      {contextMenu && contextMsg && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           messageId={contextMenu.messageId}
-          isMine={messages.find((m) => m.id === contextMenu.messageId)?.sender_id === currentUser.id}
-          isPinned={messages.find((m) => m.id === contextMenu.messageId)?.pinned || false}
+          isMine={contextMsg.sender_id === currentUser.id}
+          isPinned={contextMsg.pinned}
+          canEdit={contextMsg.sender_id === currentUser.id && contextMsg.message_type === 'text'}
           onClose={() => setContextMenu(null)}
           onReply={handleReply}
           onCopy={handleCopy}
           onDelete={deleteMessage}
           onPin={togglePin}
           onReact={toggleReaction}
+          onEdit={handleEdit}
         />
       )}
 
