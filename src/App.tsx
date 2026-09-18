@@ -106,15 +106,20 @@ export function App() {
 
       <div className={`${activeUser ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full relative`}>
         <ChatList
-          currentUserId={user.id}
+          currentUser={profile}
           conversations={conversations}
           conversationsLoading={conversationsLoading}
           onlineIds={onlineIds}
           activeUserId={activeUser?.id}
           browseAll={browseAll}
+          onToggleBrowseAll={() => setBrowseAll((v) => !v)}
           onSelectUser={handleSelectUser}
           onOpenSaved={openSavedMessages}
           isSavedActive={activeUser?.id === profile.id}
+          onOpenProfile={() => setProfileOpen(true)}
+          onSignOut={signOut}
+          notificationsEnabled={notificationsEnabled}
+          onToggleNotifications={handleToggleNotifications}
         />
       </div>
 
