@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Check, CheckCheck, Play, Pause, FileText, Download, Pin } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { useSignedUrl } from '../hooks/useSignedUrl';
 import type { ChatMessage, ReactionSummary } from '../types';
 
 interface MessageBubbleProps {
@@ -125,19 +126,24 @@ export default function MessageBubble({
   onToggleReaction,
   isReplyTarget,
 }: MessageBubbleProps) {
+  const signedUrl = useSignedUrl(message.file_path);
+
   const renderContent = () => {
-    if (message.message_type === 'image' && message.file_url) {
+    if (message.message_type === 'image') {
+      if (!signedUrl) {
+        return <div className="w-[220px] h-[160px] rounded-2xl glass animate-pulse" />;
+      }
       return (
         <motion.button
           type="button"
           whileHover={{ scale: 1.02 }}
           transition={spring}
-          onClick={() => onImageClick(message.file_url as string)}
+          onClick={() => onImageClick(signedUrl)}
           onContextMenu={(e) => onContextMenu(e, message.id)}
           className="block rounded-2xl overflow-hidden cursor-pointer max-w-[280px]"
         >
           <img
-            src={message.file_url}
+            src={signedUrl}
             alt={message.file_name || 'Изображение'}
             className="w-full h-auto max-h-[320px] object-cover"
           />
@@ -145,14 +151,17 @@ export default function MessageBubble({
       );
     }
 
-    if (message.message_type === 'voice' && message.file_url) {
-      return <VoicePlayer url={message.file_url} duration={message.duration_seconds} isMine={isMine} />;
+    if (message.message_type === 'voice') {
+      if (!signedUrl) {
+        return <div className="w-[200px] h-[54px] rounded-2xl glass animate-pulse" />;
+      }
+      return <VoicePlayer url={signedUrl} duration={message.duration_seconds} isMine={isMine} />;
     }
 
-    if (message.message_type === 'file' && message.file_url) {
+    if (message.message_type === 'file') {
       return (
         <motion.a
-          href={message.file_url}
+          href={signedUrl || undefined}
           target="_blank"
           rel="noopener noreferrer"
           download={message.file_name || undefined}
@@ -160,8 +169,8 @@ export default function MessageBubble({
           transition={spring}
           onContextMenu={(e) => onContextMenu(e, message.id)}
           className={`flex items-center gap-3 px-4 py-3 rounded-2xl min-w-[220px] cursor-pointer ${
-            isMine ? 'gradient-accent text-white rounded-br-md glow-accent' : 'glass text-zinc-200 rounded-bl-md'
-          }`}
+            !signedUrl ? 'opacity-60 pointer-events-none' : ''
+          } ${isMine ? 'gradient-accent text-white rounded-br-md glow-accent' : 'glass text-zinc-200 rounded-bl-md'}`}
         >
           <div
             className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
@@ -219,9 +228,11 @@ export default function MessageBubble({
       )}
 
       <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
-        <div className="flex items-center gap-1.5">
-          {message.pinned && <Pin size={11} className="text-violet-400 shrink-0" fill="currentColor" />}
-        </div>
+        {message.pinned && (
+          <div className={`flex items-center gap-1 mb-0.5 px-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+            <Pin size={10} className="text-violet-400" fill="currentColor" />
+          </div>
+        )}
         {renderContent()}
 
         {reactions.length > 0 && (
@@ -248,7 +259,8 @@ export default function MessageBubble({
           </div>
         )}
 
-        <div className={`flex items-center gap-1 mt-1 px-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center gap-1.5 mt-1 px-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+          {message.edited && <span className="text-[10px] text-zinc-600">изменено</span>}
           <span className="text-[10px] text-zinc-600">{timeLabel}</span>
           {isMine && (
             <>
