@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MessageSquare, Users, LogOut } from 'lucide-react';
+import { MessageSquare, Users, LogOut, Bell, BellOff } from 'lucide-react';
 import Avatar from './Avatar';
 import type { Profile } from '../types';
 
@@ -9,6 +9,8 @@ interface NavRailProps {
   onToggleBrowseAll: () => void;
   onOpenProfile: () => void;
   onSignOut: () => void;
+  notificationsEnabled: boolean;
+  onToggleNotifications: () => void;
 }
 
 export default function NavRail({
@@ -17,6 +19,8 @@ export default function NavRail({
   onToggleBrowseAll,
   onOpenProfile,
   onSignOut,
+  notificationsEnabled,
+  onToggleNotifications,
 }: NavRailProps) {
   return (
     <div className="hidden md:flex flex-col items-center gap-2 py-5 px-2 w-16 border-r border-white/5 glass shrink-0">
@@ -57,6 +61,21 @@ export default function NavRail({
         }`}
       >
         <Users size={20} />
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.92 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        onClick={onToggleNotifications}
+        title={notificationsEnabled ? 'Уведомления включены' : 'Включить уведомления в браузере'}
+        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+          notificationsEnabled
+            ? 'text-violet-400 bg-violet-500/15 border border-violet-500/30'
+            : 'text-zinc-500 hover:text-zinc-300'
+        }`}
+      >
+        {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
       </motion.button>
 
       <div className="flex-1" />
