@@ -633,7 +633,8 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
               transition={spring}
               src={lightboxUrl}
               onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-full rounded-2xl object-contain"
+              style={{ maxWidth: '92vw', maxHeight: '85vh', width: 'auto', height: 'auto' }}
+              className="rounded-2xl object-contain"
             />
             <motion.button
               whileHover={{ scale: 1.1 }}
