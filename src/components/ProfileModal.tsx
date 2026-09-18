@@ -80,12 +80,13 @@ export default function ProfileModal({ open, profile, onClose, onSave }: Profile
             onClick={onClose}
             className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 20 }}
             transition={spring}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[400px] max-w-[92vw] glass-strong rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            className="w-[400px] max-w-full max-h-[90dvh] glass-strong rounded-3xl shadow-2xl overflow-hidden flex flex-col"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
               <h2 className="text-lg font-bold text-white">Профиль</h2>
@@ -100,7 +101,7 @@ export default function ProfileModal({ open, profile, onClose, onSave }: Profile
               </motion.button>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-5 space-y-4 overflow-y-auto">
               <div className="flex flex-col items-center gap-3">
                 <input
                   ref={fileInputRef}
@@ -193,6 +194,7 @@ export default function ProfileModal({ open, profile, onClose, onSave }: Profile
               </motion.button>
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
