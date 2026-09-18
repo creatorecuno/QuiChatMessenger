@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Copy, Trash2, Pin, PinOff } from 'lucide-react';
+import { Reply, Copy, Trash2, Pin, PinOff, Pencil } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface ContextMenuProps {
@@ -8,12 +8,14 @@ interface ContextMenuProps {
   messageId: string;
   isMine: boolean;
   isPinned: boolean;
+  canEdit: boolean;
   onClose: () => void;
   onReply: (messageId: string) => void;
   onCopy: (messageId: string) => void;
   onDelete: (messageId: string) => void;
   onPin: (messageId: string) => void;
   onReact: (messageId: string, emoji: string) => void;
+  onEdit: (messageId: string) => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 26 };
@@ -26,12 +28,14 @@ export default function ContextMenu({
   messageId,
   isMine,
   isPinned,
+  canEdit,
   onClose,
   onReply,
   onCopy,
   onDelete,
   onPin,
   onReact,
+  onEdit,
 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -52,14 +56,17 @@ export default function ContextMenu({
   }, [onClose]);
 
   const clampedX = Math.min(x, window.innerWidth - 220);
-  const clampedY = Math.min(y, window.innerHeight - 320);
+  const clampedY = Math.min(y, window.innerHeight - 360);
 
   const actions = [
-    { icon: Reply, label: 'Ответить', color: 'text-violet-400', action: () => onReply(messageId) },
-    { icon: Copy, label: 'Копировать', color: 'text-zinc-300', action: () => onCopy(messageId) },
+    { key: 'reply', icon: Reply, label: 'Ответить', color: 'text-violet-400', action: () => onReply(messageId) },
+    { key: 'copy', icon: Copy, label: 'Копировать', color: 'text-zinc-300', action: () => onCopy(messageId) },
+    ...(canEdit
+      ? [{ key: 'edit', icon: Pencil, label: 'Редактировать', color: 'text-zinc-300', action: () => onEdit(messageId) }]
+      : []),
     isPinned
-      ? { icon: PinOff, label: 'Открепить', color: 'text-zinc-300', action: () => onPin(messageId) }
-      : { icon: Pin, label: 'Закрепить', color: 'text-zinc-300', action: () => onPin(messageId) },
+      ? { key: 'unpin', icon: PinOff, label: 'Открепить', color: 'text-zinc-300', action: () => onPin(messageId) }
+      : { key: 'pin', icon: Pin, label: 'Закрепить', color: 'text-zinc-300', action: () => onPin(messageId) },
   ];
 
   return (
@@ -97,7 +104,7 @@ export default function ContextMenu({
             const Icon = item.icon;
             return (
               <motion.button
-                key={item.label}
+                key={item.key}
                 whileHover={{ scale: 1.02, x: 2 }}
                 whileTap={{ scale: 0.96 }}
                 transition={spring}
