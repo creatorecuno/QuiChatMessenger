@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { ChatMessage, ConversationPreview, Profile } from '../types';
+
+const NOTIFICATIONS_KEY = 'quichat_notifications_enabled';
 
 export function useConversations(currentUserId: string | undefined) {
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [loading, setLoading] = useState(true);
+  const conversationsRef = useRef<ConversationPreview[]>([]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   const loadConversations = useCallback(async () => {
     if (!currentUserId) return;
@@ -94,6 +101,28 @@ export function useConversations(currentUserId: string | undefined) {
           if (msg.sender_id === currentUserId || msg.receiver_id === currentUserId) {
             loadConversations();
           }
+
+          if (msg.receiver_id === currentUserId && msg.sender_id !== currentUserId && document.hidden) {
+            const enabled = localStorage.getItem(NOTIFICATIONS_KEY) === 'true';
+            if (enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              const peerName =
+                conversationsRef.current.find((c) => c.peer.id === msg.sender_id)?.peer.username || 'QuiChat';
+              const body =
+                msg.content ||
+                (msg.message_type === 'image'
+                  ? 'Фото'
+                  : msg.message_type === 'voice'
+                  ? 'Голосовое сообщение'
+                  : msg.message_type === 'file'
+                  ? 'Файл'
+                  : 'Новое сообщение');
+              try {
+                new Notification(peerName, { body });
+              } catch {
+                /* ignore notification errors */
+              }
+            }
+          }
         }
       )
       .on(
@@ -120,5 +149,7 @@ export function useConversations(currentUserId: string | undefined) {
     });
   }, []);
 
-  return { conversations, loading, upsertPeer, refresh: loadConversations };
+  const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations]);
+
+  return { conversations, loading, upsertPeer, refresh: loadConversations, totalUnread };
 }
