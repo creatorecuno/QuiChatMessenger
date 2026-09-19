@@ -7,9 +7,33 @@
     --bg-primary: #0a0a0f;
     --bg-secondary: #12121a;
     --bg-tertiary: #1a1a26;
-    --accent: #8b5cf6;
-    --accent-light: #a78bfa;
-    --accent-glow: rgba(139, 92, 246, 0.15);
+    --accent-from: #8b5cf6;
+    --accent-to: #6366f1;
+    --accent-rgb: 139, 92, 246;
+  }
+
+  :root[data-accent='blue'] {
+    --accent-from: #3b82f6;
+    --accent-to: #06b6d4;
+    --accent-rgb: 59, 130, 246;
+  }
+
+  :root[data-accent='emerald'] {
+    --accent-from: #10b981;
+    --accent-to: #0d9488;
+    --accent-rgb: 16, 185, 129;
+  }
+
+  :root[data-accent='rose'] {
+    --accent-from: #f43f5e;
+    --accent-to: #ec4899;
+    --accent-rgb: 244, 63, 94;
+  }
+
+  :root[data-accent='amber'] {
+    --accent-from: #f59e0b;
+    --accent-to: #ea580c;
+    --accent-rgb: 245, 158, 11;
   }
 
   * {
@@ -55,33 +79,37 @@
   }
 
   .gradient-accent {
-    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    background: linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%);
   }
 
   .gradient-accent-hover:hover {
-    background: linear-gradient(135deg, #9b6cf6 0%, #7376f1 100%);
+    filter: brightness(1.12);
   }
 
   .text-gradient {
-    background: linear-gradient(135deg, #a78bfa 0%, #818cf8 100%);
+    background: linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .glow-accent {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.25);
   }
 
   .glow-accent-strong {
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.4), 0 0 60px rgba(var(--accent-rgb), 0.15);
+  }
+
+  .ambient-glow-accent {
+    background: rgb(var(--accent-rgb));
   }
 }
 
 /* Custom scrollbar */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 92, 246, 0.2) transparent;
+  scrollbar-color: rgba(var(--accent-rgb), 0.2) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -94,17 +122,17 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0);
+  background: rgba(var(--accent-rgb), 0);
   border-radius: 999px;
   transition: background 0.3s ease;
 }
 
 .scrollbar-thin:hover::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgba(var(--accent-rgb), 0.3);
 }
 
 .scrollbar-thin:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
+  background: rgba(var(--accent-rgb), 0.5);
 }
 
 .scrollbar-none {
@@ -169,13 +197,13 @@
 /* Voice recording pulse ring */
 @keyframes recording-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.4);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(139, 92, 246, 0);
+    box-shadow: 0 0 0 12px rgba(var(--accent-rgb), 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0);
   }
 }
 
@@ -187,4 +215,39 @@
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Chat wallpapers */
+.chat-wallpaper {
+  position: relative;
+}
+
+html[data-wallpaper='dots'] .chat-wallpaper {
+  background-image: radial-gradient(rgba(var(--accent-rgb), 0.18) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+html[data-wallpaper='grid'] .chat-wallpaper {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+html[data-wallpaper='aurora'] .chat-wallpaper {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 10%, rgba(var(--accent-rgb), 0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 85% 85%, rgba(var(--accent-rgb), 0.10) 0%, transparent 60%);
+}
+
+/* Reduced motion */
+html[data-reduce-motion='true'] .typing-dot,
+html[data-reduce-motion='true'] .status-online,
+html[data-reduce-motion='true'] .recording-pulse {
+  animation: none !important;
+}
+
+html[data-reduce-motion='true'] * {
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
