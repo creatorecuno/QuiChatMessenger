@@ -345,7 +345,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
         )}
       </AnimatePresence>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2 chat-wallpaper">
         <div className="max-w-3xl mx-auto">
           {hasMore && !searchQuery && (
             <div className="flex justify-center py-2">
