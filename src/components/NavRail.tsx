@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MessageSquare, Users, LogOut, Bell, BellOff } from 'lucide-react';
+import { MessageSquare, Users, LogOut, Bell, BellOff, Palette } from 'lucide-react';
 import Avatar from './Avatar';
 import type { Profile } from '../types';
 
@@ -11,6 +11,7 @@ interface NavRailProps {
   onSignOut: () => void;
   notificationsEnabled: boolean;
   onToggleNotifications: () => void;
+  onOpenSettings: () => void;
 }
 
 export default function NavRail({
@@ -21,6 +22,7 @@ export default function NavRail({
   onSignOut,
   notificationsEnabled,
   onToggleNotifications,
+  onOpenSettings,
 }: NavRailProps) {
   return (
     <div className="hidden md:flex flex-col items-center gap-2 py-5 px-2 w-16 border-r border-white/5 glass shrink-0">
@@ -76,6 +78,17 @@ export default function NavRail({
         }`}
       >
         {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.92 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        onClick={onOpenSettings}
+        title="Оформление"
+        className="w-11 h-11 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
+      >
+        <Palette size={20} />
       </motion.button>
 
       <div className="flex-1" />
