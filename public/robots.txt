@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://qui-chat-messenger.vercel.app/sitemap.xml
