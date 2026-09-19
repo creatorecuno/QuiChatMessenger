@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, X, Bookmark, Users, Bell, BellOff, LogOut } from 'lucide-react';
+import { Search, X, Bookmark, Users, Bell, BellOff, LogOut, Palette } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Avatar from './Avatar';
 import type { ConversationPreview, Profile } from '../types';
@@ -20,6 +20,7 @@ interface ChatListProps {
   onSignOut: () => void;
   notificationsEnabled: boolean;
   onToggleNotifications: () => void;
+  onOpenSettings: () => void;
 }
 
 function formatPreviewTime(iso: string) {
@@ -53,6 +54,7 @@ export default function ChatList({
   onSignOut,
   notificationsEnabled,
   onToggleNotifications,
+  onOpenSettings,
 }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
@@ -123,6 +125,16 @@ export default function ChatList({
               }`}
             >
               {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onClick={onOpenSettings}
+              title="Оформление"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <Palette size={16} />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.08 }}
