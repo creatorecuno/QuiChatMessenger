@@ -102,9 +102,19 @@ export function useConversations(currentUserId: string | undefined) {
             loadConversations();
           }
 
-          if (msg.receiver_id === currentUserId && msg.sender_id !== currentUserId && document.hidden) {
+          if (msg.receiver_id === currentUserId && msg.sender_id !== currentUserId) {
             const enabled = localStorage.getItem(NOTIFICATIONS_KEY) === 'true';
-            if (enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            if (enabled) {
+              try {
+                const audio = new Audio('/notification.wav');
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+              } catch {
+                /* ignore audio errors */
+              }
+            }
+
+            if (enabled && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               const peerName =
                 conversationsRef.current.find((c) => c.peer.id === msg.sender_id)?.peer.username || 'QuiChat';
               const body =
