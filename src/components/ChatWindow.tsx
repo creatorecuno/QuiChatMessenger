@@ -6,14 +6,17 @@ import MessageBubble, { TypingBubble } from './MessageBubble';
 import DateSeparator from './DateSeparator';
 import EmojiPicker from './EmojiPicker';
 import ContextMenu from './ContextMenu';
+import ForwardModal from './ForwardModal';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-import type { ChatMessage, Profile } from '../types';
+import { useForwardMessage } from '../hooks/useForwardMessage';
+import type { ChatMessage, ConversationPreview, Profile } from '../types';
 
 interface ChatWindowProps {
   currentUser: Profile;
   peer: Profile;
   isPeerOnline: boolean;
+  conversations: ConversationPreview[];
   onBack: () => void;
 }
 
@@ -52,7 +55,7 @@ function pinnedPreview(msg: ChatMessage) {
   return '';
 }
 
-export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: ChatWindowProps) {
+export default function ChatWindow({ currentUser, peer, isPeerOnline, conversations, onBack }: ChatWindowProps) {
   const isSelf = peer.id === currentUser.id;
   const {
     messages,
@@ -72,6 +75,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
     uploading,
   } = useChat(currentUser.id, peer.id);
   const voice = useVoiceRecorder();
+  const { forwardMessage } = useForwardMessage(currentUser.id);
 
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -81,6 +85,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +146,11 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
       setEditingMessage(null);
       setReplyTo(msg);
     }
+  };
+
+  const handleForward = (messageId: string) => {
+    const msg = messages.find((m) => m.id === messageId);
+    if (msg) setForwardMsg(msg);
   };
 
   const handleEdit = (messageId: string) => {
@@ -614,8 +624,20 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, onBack }: 
           onPin={togglePin}
           onReact={toggleReaction}
           onEdit={handleEdit}
+          onForward={handleForward}
         />
       )}
+
+      <ForwardModal
+        open={forwardMsg !== null}
+        onClose={() => setForwardMsg(null)}
+        conversations={conversations}
+        currentUser={currentUser}
+        onSelectTarget={(targetPeerId) => {
+          if (!forwardMsg) return Promise.resolve(false);
+          return forwardMessage(forwardMsg, targetPeerId);
+        }}
+      />
 
       <AnimatePresence>
         {lightboxUrl && (
