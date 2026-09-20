@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Copy, Trash2, Pin, PinOff, Pencil } from 'lucide-react';
+import { Reply, Copy, Trash2, Pin, PinOff, Pencil, Forward } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface ContextMenuProps {
@@ -16,6 +16,7 @@ interface ContextMenuProps {
   onPin: (messageId: string) => void;
   onReact: (messageId: string, emoji: string) => void;
   onEdit: (messageId: string) => void;
+  onForward: (messageId: string) => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 26 };
@@ -36,6 +37,7 @@ export default function ContextMenu({
   onPin,
   onReact,
   onEdit,
+  onForward,
 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -60,6 +62,7 @@ export default function ContextMenu({
 
   const actions = [
     { key: 'reply', icon: Reply, label: 'Ответить', color: 'text-violet-400', action: () => onReply(messageId) },
+    { key: 'forward', icon: Forward, label: 'Переслать', color: 'text-zinc-300', action: () => onForward(messageId) },
     { key: 'copy', icon: Copy, label: 'Копировать', color: 'text-zinc-300', action: () => onCopy(messageId) },
     ...(canEdit
       ? [{ key: 'edit', icon: Pencil, label: 'Редактировать', color: 'text-zinc-300', action: () => onEdit(messageId) }]
