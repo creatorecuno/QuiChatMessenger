@@ -19,6 +19,13 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
 }
 
+function translateSendError(message: string): string {
+  if (message.includes('rate_limit_exceeded')) {
+    return 'Слишком много сообщений подряд. Подожди немного.';
+  }
+  return message;
+}
+
 export function useChat(currentUserId: string | undefined, peerId: string | undefined) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [rawReactions, setRawReactions] = useState<RawReaction[]>([]);
@@ -243,7 +250,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       });
       if (error) {
         console.error('Error sending message:', error.message);
-        setSendError(error.message);
+        setSendError(translateSendError(error.message));
       }
     },
     [currentUserId, peerId]
@@ -285,7 +292,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Не удалось загрузить файл';
         console.error('Error sending media message:', message);
-        setSendError(message);
+        setSendError(translateSendError(message));
       } finally {
         setUploading(false);
       }
