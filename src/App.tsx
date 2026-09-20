@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { usePresence } from './hooks/usePresence';
 import { useConversations } from './hooks/useConversations';
 import { useAppearance } from './hooks/useAppearance';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import AuthModal from './components/AuthModal';
 import NavRail from './components/NavRail';
 import ChatList from './components/ChatList';
@@ -22,6 +23,7 @@ export function App() {
   const onlineIds = usePresence(user?.id);
   const { conversations, loading: conversationsLoading, upsertPeer, totalUnread } = useConversations(user?.id);
   const { appearance, update: updateAppearance } = useAppearance();
+  const { subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications(user?.id);
   const [activeUser, setActiveUser] = useState<Profile | null>(null);
   const [browseAll, setBrowseAll] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -51,19 +53,18 @@ export function App() {
     if (notificationsEnabled) {
       localStorage.setItem(NOTIFICATIONS_KEY, 'false');
       setNotificationsEnabled(false);
+      await unsubscribePush();
       return;
     }
-    if (typeof Notification === 'undefined') return;
-    if (Notification.permission === 'granted') {
-      localStorage.setItem(NOTIFICATIONS_KEY, 'true');
-      setNotificationsEnabled(true);
-      return;
-    }
-    if (Notification.permission === 'denied') return;
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      localStorage.setItem(NOTIFICATIONS_KEY, 'true');
-      setNotificationsEnabled(true);
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+      const permission =
+        Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (permission === 'granted') {
+        localStorage.setItem(NOTIFICATIONS_KEY, 'true');
+        setNotificationsEnabled(true);
+        await subscribePush();
+        return;
+      }
     }
   };
 
@@ -133,6 +134,7 @@ export function App() {
                 currentUser={profile}
                 peer={activeUser}
                 isPeerOnline={onlineIds.has(activeUser.id)}
+                conversations={conversations}
                 onBack={() => setActiveUser(null)}
               />
             ) : (
