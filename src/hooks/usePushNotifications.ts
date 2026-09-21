@@ -27,14 +27,14 @@ export function usePushNotifications(userId: string | undefined) {
   }, []);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!supported || !userId) return false;
+    if (!supported || !userId || !VAPID_PUBLIC_KEY) return false;
     try {
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY as string),
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
         });
       }
       const json = subscription.toJSON();

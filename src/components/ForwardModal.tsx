@@ -14,7 +14,13 @@ interface ForwardModalProps {
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 28 };
 
-export default function ForwardModal({ open, onClose, conversations, currentUser, onSelectTarget }: ForwardModalProps) {
+export default function ForwardModal({
+  open,
+  onClose,
+  conversations,
+  currentUser,
+  onSelectTarget,
+}: ForwardModalProps) {
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
 
