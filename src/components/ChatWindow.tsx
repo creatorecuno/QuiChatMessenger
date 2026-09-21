@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Phone, Video, Info, Square, Bookmark, Pin, PinOff, Pencil } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Search, X, Mic, Info, Square, Bookmark, Pin, PinOff, Pencil } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Avatar from './Avatar';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -7,6 +7,7 @@ import DateSeparator from './DateSeparator';
 import EmojiPicker from './EmojiPicker';
 import ContextMenu from './ContextMenu';
 import ForwardModal from './ForwardModal';
+import PeerInfoModal from './PeerInfoModal';
 import { useChat } from '../hooks/useChat';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useForwardMessage } from '../hooks/useForwardMessage';
@@ -17,7 +18,10 @@ interface ChatWindowProps {
   peer: Profile;
   isPeerOnline: boolean;
   conversations: ConversationPreview[];
+  muted: boolean;
   onBack: () => void;
+  onToggleMute: () => void;
+  onBlock: () => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
@@ -55,7 +59,16 @@ function pinnedPreview(msg: ChatMessage) {
   return '';
 }
 
-export default function ChatWindow({ currentUser, peer, isPeerOnline, conversations, onBack }: ChatWindowProps) {
+export default function ChatWindow({
+  currentUser,
+  peer,
+  isPeerOnline,
+  conversations,
+  muted,
+  onBack,
+  onToggleMute,
+  onBlock,
+}: ChatWindowProps) {
   const isSelf = peer.id === currentUser.id;
   const {
     messages,
@@ -73,6 +86,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
     notifyTyping,
     sendError,
     uploading,
+    firstUnreadId,
   } = useChat(currentUser.id, peer.id);
   const voice = useVoiceRecorder();
   const { forwardMessage } = useForwardMessage(currentUser.id);
@@ -86,6 +100,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +131,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
     sendMessage(content);
     setInput('');
     setReplyTo(null);
+    localStorage.removeItem(`quichat_draft_${peer.id}`);
   }, [input, replyTo, editingMessage, sendMessage, editMessage]);
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -128,7 +144,23 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
   const handleInputChange = (value: string) => {
     setInput(value);
     notifyTyping();
+    if (!editingMessage) {
+      const key = `quichat_draft_${peer.id}`;
+      if (value.trim()) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    }
   };
+
+  useEffect(() => {
+    setShowEmoji(false);
+    setShowSearch(false);
+    setSearchQuery('');
+    setReplyTo(null);
+    setEditingMessage(null);
+    setContextMenu(null);
+    const saved = localStorage.getItem(`quichat_draft_${peer.id}`);
+    setInput(saved || '');
+  }, [peer.id]);
 
   const handleContextMenu = (e: React.MouseEvent, messageId: string) => {
     e.preventDefault();
@@ -215,10 +247,8 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
   const displayName = isSelf ? 'Избранное' : peer.username || peer.email;
 
   const headerActions = [
-    { icon: Search, label: 'Search', onClick: () => setShowSearch((v) => !v), enabled: true },
-    { icon: Phone, label: 'Call', onClick: () => {}, enabled: false },
-    { icon: Video, label: 'Video', onClick: () => {}, enabled: false },
-    { icon: Info, label: 'Info', onClick: () => {}, enabled: false },
+    { icon: Search, label: 'Поиск', onClick: () => setShowSearch((v) => !v), enabled: true },
+    ...(!isSelf ? [{ icon: Info, label: 'О чате', onClick: () => setInfoOpen(true), enabled: true }] : []),
   ];
 
   return (
@@ -244,7 +274,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
             <Bookmark size={18} className="text-white" fill="currentColor" />
           </div>
         ) : (
-          <Avatar name={displayName} avatarUrl={peer.avatar_url} status={isPeerOnline ? 'online' : 'offline'} showStatus size="md" />
+          <Avatar name={displayName} avatarUrl={peer.avatar_url} status={isPeerOnline ? 'online' : 'offline'} showStatus={isPeerOnline} size="md" />
         )}
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-bold text-white truncate">{displayName}</h2>
@@ -259,7 +289,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
                 В сети
               </span>
             ) : (
-              'Не в сети'
+              'Был(а) недавно'
             )}
           </p>
         </div>
@@ -277,7 +307,7 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
               className={`w-9 h-9 rounded-xl glass flex items-center justify-center transition-colors ${
                 !enabled
                   ? 'text-zinc-600 opacity-50 cursor-not-allowed'
-                  : label === 'Search' && showSearch
+                  : label === 'Поиск' && showSearch
                   ? 'text-violet-400 border border-violet-500/30'
                   : 'text-zinc-400 hover:text-violet-400'
               }`}
@@ -392,6 +422,13 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
                   onTouchEnd={handleTouchEnd}
                 >
                   {showDate && <DateSeparator label={dateLabel} />}
+                  {msg.id === firstUnreadId && (
+                    <div className="flex items-center gap-2 my-3">
+                      <div className="flex-1 h-px bg-violet-500/35" />
+                      <span className="text-[11px] text-violet-300 font-medium whitespace-nowrap">Непрочитанные</span>
+                      <div className="flex-1 h-px bg-violet-500/35" />
+                    </div>
+                  )}
                   <MessageBubble
                     message={msg}
                     isMine={isMine}
@@ -636,6 +673,19 @@ export default function ChatWindow({ currentUser, peer, isPeerOnline, conversati
         onSelectTarget={(targetPeerId) => {
           if (!forwardMsg) return Promise.resolve(false);
           return forwardMessage(forwardMsg, targetPeerId);
+        }}
+      />
+
+      <PeerInfoModal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        peer={peer}
+        isOnline={isPeerOnline}
+        muted={muted}
+        onToggleMute={onToggleMute}
+        onBlock={() => {
+          setInfoOpen(false);
+          onBlock();
         }}
       />
 

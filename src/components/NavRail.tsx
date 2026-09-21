@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
-import { MessageSquare, Users, LogOut, Bell, BellOff, Palette } from 'lucide-react';
+import { MessageSquare, UserPlus, LogOut, Bell, BellOff, Palette } from 'lucide-react';
 import Avatar from './Avatar';
 import type { Profile } from '../types';
 
 interface NavRailProps {
   currentUser: Profile;
-  browseAll: boolean;
-  onToggleBrowseAll: () => void;
+  peopleOpen: boolean;
+  incomingCount: number;
+  onTogglePeople: () => void;
   onOpenProfile: () => void;
   onSignOut: () => void;
   notificationsEnabled: boolean;
@@ -16,8 +17,9 @@ interface NavRailProps {
 
 export default function NavRail({
   currentUser,
-  browseAll,
-  onToggleBrowseAll,
+  peopleOpen,
+  incomingCount,
+  onTogglePeople,
   onOpenProfile,
   onSignOut,
   notificationsEnabled,
@@ -54,15 +56,20 @@ export default function NavRail({
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        onClick={onToggleBrowseAll}
-        title="Все пользователи"
-        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
-          browseAll
+        onClick={onTogglePeople}
+        title="Заявки и поиск"
+        className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+          peopleOpen
             ? 'text-violet-400 bg-violet-500/15 border border-violet-500/30'
             : 'text-zinc-500 hover:text-zinc-300'
         }`}
       >
-        <Users size={20} />
+        <UserPlus size={20} />
+        {incomingCount > 0 && (
+          <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 rounded-full gradient-accent text-[9px] font-semibold flex items-center justify-center text-white">
+            {incomingCount > 9 ? '9+' : incomingCount}
+          </span>
+        )}
       </motion.button>
 
       <motion.button
@@ -85,7 +92,7 @@ export default function NavRail({
         whileTap={{ scale: 0.92 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         onClick={onOpenSettings}
-        title="Оформление"
+        title="Настройки"
         className="w-11 h-11 rounded-xl flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
       >
         <Palette size={20} />

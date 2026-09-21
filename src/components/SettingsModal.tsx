@@ -1,12 +1,15 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Palette, Image as ImageIcon, Sparkles, Check } from 'lucide-react';
+import { X, Palette, Image as ImageIcon, Sparkles, Check, Eye } from 'lucide-react';
 import type { Appearance, AccentTheme, Wallpaper } from '../hooks/useAppearance';
+import type { LastSeenVisibility } from '../types';
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   appearance: Appearance;
   onUpdate: (patch: Partial<Appearance>) => void;
+  lastSeenVisibility: LastSeenVisibility;
+  onUpdateLastSeen: (value: LastSeenVisibility) => void;
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 28 };
@@ -24,6 +27,12 @@ const wallpapers: { key: Wallpaper; label: string }[] = [
   { key: 'dots', label: 'Точки' },
   { key: 'grid', label: 'Сетка' },
   { key: 'aurora', label: 'Сияние' },
+];
+
+const lastSeenOptions: { key: LastSeenVisibility; label: string; hint: string }[] = [
+  { key: 'everyone', label: 'Все', hint: 'Статус «в сети» виден любому, кто откроет чат' },
+  { key: 'contacts', label: 'Только контакты', hint: 'Видят люди, с которыми вы в контактах' },
+  { key: 'nobody', label: 'Никто', hint: 'Онлайн скрыт. Показываем «был(а) недавно»' },
 ];
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -81,7 +90,14 @@ function WallpaperPreview({ variant }: { variant: Wallpaper }) {
   );
 }
 
-export default function SettingsModal({ open, onClose, appearance, onUpdate }: SettingsModalProps) {
+export default function SettingsModal({
+  open,
+  onClose,
+  appearance,
+  onUpdate,
+  lastSeenVisibility,
+  onUpdateLastSeen,
+}: SettingsModalProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -104,7 +120,7 @@ export default function SettingsModal({ open, onClose, appearance, onUpdate }: S
               <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
                   <Sparkles size={18} className="text-violet-400" />
-                  <h2 className="text-lg font-bold text-white">Оформление</h2>
+                  <h2 className="text-lg font-bold text-white">Настройки</h2>
                 </div>
                 <motion.button
                   whileHover={{ scale: 1.08 }}
@@ -199,6 +215,29 @@ export default function SettingsModal({ open, onClose, appearance, onUpdate }: S
                     enabled={appearance.reduceMotion}
                     onChange={() => onUpdate({ reduceMotion: !appearance.reduceMotion })}
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Eye size={16} className="text-zinc-400" />
+                    <label className="text-sm font-medium text-white">Кто видит, что вы в сети</label>
+                  </div>
+                  <div className="space-y-2">
+                    {lastSeenOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => onUpdateLastSeen(option.key)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
+                          lastSeenVisibility === option.key
+                            ? 'glass-strong border border-violet-500/40'
+                            : 'glass border border-transparent hover:border-white/10'
+                        }`}
+                      >
+                        <p className="text-sm text-white">{option.label}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{option.hint}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

@@ -1,13 +1,9 @@
 import { motion } from 'framer-motion';
-import { MessageSquare, X } from 'lucide-react';
-
-interface EmptyStateProps {
-  onDismiss?: () => void;
-}
+import { MessageSquare } from 'lucide-react';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
-export default function EmptyState({ onDismiss }: EmptyStateProps) {
+export default function EmptyState() {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -24,13 +20,13 @@ export default function EmptyState({ onDismiss }: EmptyStateProps) {
         <MessageSquare size={36} className="text-white" />
       </motion.div>
 
-      <h2 className="text-2xl font-bold text-white mb-2">Welcome to QuiChat</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Добро пожаловать в QuiChat</h2>
       <p className="text-sm text-zinc-500 max-w-sm leading-relaxed">
-        Select a conversation from the left to start chatting, or begin a new one. Your messages are end-to-end secured.
+        Выберите диалог слева или найдите человека по имени и отправьте заявку. Переписка видна только участникам чата.
       </p>
 
-      <div className="flex items-center gap-4 mt-8">
-        {['Encrypted', 'Real-time', 'Spring-animated'].map((feature, i) => (
+      <div className="flex items-center gap-3 mt-8">
+        {['По заявке', 'В реальном времени', 'Только свои чаты'].map((feature, i) => (
           <motion.span
             key={feature}
             initial={{ opacity: 0, y: 10 }}

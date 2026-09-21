@@ -1,5 +1,7 @@
 export type OnlineStatus = 'online' | 'offline' | 'away';
 export type MessageType = 'text' | 'image' | 'file' | 'voice';
+export type LastSeenVisibility = 'everyone' | 'contacts' | 'nobody';
+export type ContactRequestStatus = 'pending' | 'accepted' | 'declined';
 
 export interface Profile {
   id: string;
@@ -9,6 +11,16 @@ export interface Profile {
   email: string;
   created_at: string;
   updated_at: string;
+  last_seen_visibility?: LastSeenVisibility;
+}
+
+export interface ContactRequest {
+  id: string;
+  requester_id: string;
+  addressee_id: string;
+  status: ContactRequestStatus;
+  created_at: string;
+  responded_at: string | null;
 }
 
 export interface ChatMessage {

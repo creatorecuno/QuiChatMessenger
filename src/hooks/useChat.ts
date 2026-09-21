@@ -35,6 +35,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
   const [peerTyping, setPeerTyping] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [firstUnreadId, setFirstUnreadId] = useState<string | null>(null);
 
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -79,6 +80,7 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
     setRawReactions([]);
     setHasMore(false);
     oldestLoadedRef.current = null;
+    setFirstUnreadId(null);
 
     const orCondition = `and(sender_id.eq.${currentUserId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${currentUserId})`;
 
@@ -98,9 +100,11 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
       }
 
       const rows = ((data || []) as ChatMessage[]).slice().reverse();
+      const unreadAnchor = rows.find((m) => m.sender_id === peerId && m.status !== 'read');
       setMessages(rows);
       setHasMore((data || []).length === PAGE_SIZE);
       oldestLoadedRef.current = rows[0]?.created_at ?? null;
+      setFirstUnreadId(unreadAnchor?.id ?? null);
       setLoading(false);
       markPeerMessagesRead();
       await fetchReactionsFor(rows.map((m) => m.id));
@@ -387,5 +391,6 @@ export function useChat(currentUserId: string | undefined, peerId: string | unde
     notifyTyping,
     sendError,
     uploading,
+    firstUnreadId,
   };
 }

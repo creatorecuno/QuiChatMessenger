@@ -4,7 +4,12 @@ import type { ChatMessage, ConversationPreview, Profile } from '../types';
 
 const NOTIFICATIONS_KEY = 'quichat_notifications_enabled';
 
-export function useConversations(currentUserId: string | undefined) {
+export function useConversations(
+  currentUserId: string | undefined,
+  options?: { mutedIds?: Set<string>; blockedIds?: Set<string> }
+) {
+  const mutedIds = options?.mutedIds;
+  const blockedIds = options?.blockedIds;
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const conversationsRef = useRef<ConversationPreview[]>([]);
@@ -65,6 +70,7 @@ export function useConversations(currentUserId: string | undefined) {
 
     const list: ConversationPreview[] = peerIds
       .map((peerId) => {
+        if (blockedIds?.has(peerId)) return null;
         const peer = profileById.get(peerId);
         if (!peer) return null;
         return {
@@ -82,7 +88,7 @@ export function useConversations(currentUserId: string | undefined) {
 
     setConversations(list);
     setLoading(false);
-  }, [currentUserId]);
+  }, [currentUserId, blockedIds]);
 
   useEffect(() => {
     loadConversations();
@@ -103,6 +109,7 @@ export function useConversations(currentUserId: string | undefined) {
           }
 
           if (msg.receiver_id === currentUserId && msg.sender_id !== currentUserId) {
+            if (mutedIds?.has(msg.sender_id) || blockedIds?.has(msg.sender_id)) return;
             const enabled = localStorage.getItem(NOTIFICATIONS_KEY) === 'true';
             if (enabled) {
               try {
@@ -150,7 +157,7 @@ export function useConversations(currentUserId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUserId, loadConversations]);
+  }, [currentUserId, loadConversations, mutedIds, blockedIds]);
 
   const upsertPeer = useCallback((peer: Profile) => {
     setConversations((prev) => {

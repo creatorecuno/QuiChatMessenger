@@ -111,6 +111,9 @@ export default function AuthModal({ open, onClose, onSignIn, onSignUp, onOpenPri
                 <p className="text-sm text-zinc-500 mt-1">
                   {mode === 'login' ? 'С возвращением' : 'Создание аккаунта'}
                 </p>
+                <p className="text-[11px] text-zinc-600 mt-2 text-center max-w-[280px]">
+                  Чаты открываются по заявке. Сообщения видят только участники переписки.
+                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-3">
